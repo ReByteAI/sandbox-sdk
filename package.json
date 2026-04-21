@@ -1,0 +1,131 @@
+{
+  "name": "rebyte-sandbox",
+  "version": "0.3.1",
+  "description": "TypeScript SDK for creating and managing secure sandboxes for code execution",
+  "homepage": "https://github.com/ReByteAI/sandbox-sdk",
+  "license": "Apache-2.0",
+  "author": "Microsandbox Team <team@microsandbox.dev>",
+  "bugs": {
+    "url": "https://github.com/ReByteAI/sandbox-sdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ReByteAI/sandbox-sdk.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./vm-lifecycle": {
+      "import": "./dist/vm-lifecycle/index.mjs",
+      "require": "./dist/vm-lifecycle/index.js",
+      "types": "./dist/vm-lifecycle/index.d.ts"
+    },
+    "./vm-lifecycle/VmProvider": {
+      "import": "./dist/vm-lifecycle/VmProvider.mjs",
+      "require": "./dist/vm-lifecycle/VmProvider.js",
+      "types": "./dist/vm-lifecycle/VmProvider.d.ts"
+    },
+    "./vm-lifecycle/ensureVmRunning": {
+      "import": "./dist/vm-lifecycle/ensureVmRunning.mjs",
+      "require": "./dist/vm-lifecycle/ensureVmRunning.js",
+      "types": "./dist/vm-lifecycle/ensureVmRunning.d.ts"
+    }
+  },
+  "scripts": {
+    "prepublishOnly": "pnpm build",
+    "build": "tsc --noEmit && tsup",
+    "dev": "tsup --watch",
+    "example": "tsx example.mts",
+    "test": "vitest run",
+    "generate": "npm-run-all generate:* && pnpm run format",
+    "generate:api": "python ./../../spec/remove_extra_tags.py sandboxes templates auth && openapi-typescript ../../spec/openapi_generated.yml -x api_key --array-length --alphabetize --default-non-nullable false --output src/api/schema.gen.ts",
+    "generate:envd": "cd ../../spec/envd && buf generate --template buf-js.gen.yaml\n",
+    "generate:envd-api": "openapi-typescript ../../spec/envd/envd.yaml -x api_key --array-length --alphabetize --output src/envd/schema.gen.ts",
+    "generate:mcp": "json2ts -i ./../../spec/mcp-server.json -o src/sandbox/mcp.d.ts --unreachableDefinitions --style.singleQuote --no-style.semi",
+    "generate-ref": "./scripts/generate_sdk_ref.sh",
+    "check-deps": "knip",
+    "update-deps": "ncu -u && pnpm i",
+    "pretest": "npx playwright install --with-deps chromium",
+    "postPublish": "./scripts/post-publish.sh || true",
+    "test:bun": "bun test tests/runtimes/bun --env-file=.env",
+    "test:deno": "deno test tests/runtimes/deno/ --allow-net --allow-read --allow-env --unstable-sloppy-imports --trace-leaks",
+    "test:integration": "REBYTE_SANDBOX_INTEGRATION_TEST=1 vitest run tests/integration/**",
+    "lint": "eslint src/ tests/",
+    "format": "prettier --write src/ tests/ example.mts"
+  },
+  "devDependencies": {
+    "@tanstack/react-query": "^5.99.2",
+    "@testing-library/react": "^16.2.0",
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.19.19",
+    "@types/platform": "^1.3.6",
+    "@types/react": "^18.3.11",
+    "@types/ws": "^8.18.1",
+    "@typescript-eslint/eslint-plugin": "^7.11.0",
+    "@typescript-eslint/parser": "^7.11.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/browser": "^3.1.1",
+    "dotenv": "^16.4.5",
+    "eslint": "^8.57.1",
+    "json-schema-to-typescript": "^15.0.4",
+    "knip": "^5.43.6",
+    "msw": "^2.12.3",
+    "npm-check-updates": "^16.14.20",
+    "npm-run-all": "^4.1.5",
+    "openapi-typescript": "^7.9.1",
+    "playwright": "^1.55.1",
+    "react": "^18.3.1 || ^19.0.0",
+    "tsup": "^8.4.0",
+    "typedoc": "0.26.8",
+    "typedoc-plugin-markdown": "4.2.7",
+    "typescript": "^5.4.5",
+    "vitest": "^3.1.1",
+    "vitest-browser-react": "^0.1.1",
+    "ws": "^8.19.0"
+  },
+  "files": [
+    "dist",
+    "vm-lifecycle",
+    "README.md",
+    "package.json"
+  ],
+  "keywords": [
+    "microsandbox",
+    "sdk",
+    "sandbox",
+    "security",
+    "code-execution",
+    "vm",
+    "nodejs",
+    "javascript",
+    "typescript"
+  ],
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.6.2",
+    "@connectrpc/connect": "2.0.0-rc.3",
+    "@connectrpc/connect-web": "2.0.0-rc.3",
+    "chalk": "^5.3.0",
+    "compare-versions": "^6.1.0",
+    "dockerfile-ast": "^0.7.1",
+    "glob": "^11.0.3",
+    "openapi-fetch": "^0.14.1",
+    "platform": "^1.3.6",
+    "tar": "^7.4.3"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "browserslist": [
+    "defaults"
+  ]
+}
