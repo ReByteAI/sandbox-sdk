@@ -1,7 +1,19 @@
 # sandbox-sdk (package: `rebyte-sandbox`)
 
-TypeScript SDK for the Rebyte / microsandbox VM runtime, plus the lifecycle
-pattern that keeps a VM warm from a UI + HTTP app.
+TypeScript SDK for the Rebyte sandbox infrastructure — the `microsandbox` VM
+runtime plus the lifecycle pattern that keeps a VM warm from a UI + HTTP app.
+
+Extended from the [E2B SDK](https://github.com/e2b-dev/E2B) with Rebyte-specific
+optimizations for VM lifecycle. Two headline capabilities:
+
+- **Resume a VM** — pause a VM with a full memory + disk snapshot
+  (`sandbox.pause()`), then resume it later via `Sandbox.connect(id)`. Restore
+  is near-instant (~100–500ms) and running processes continue exactly where
+  they left off.
+- **Hibernate a VM** — rootfs-only pause (`sandbox.hibernate()`) that saves
+  disk state without a memory snapshot. Snapshotting is ~40–50% faster than a
+  full pause; on `connect()` the VM cold boots (~5–7s) with all disk
+  modifications intact.
 
 > Canonical source for this package. Replaces `cctools/packages/rebytevm-sdk`.
 
