@@ -46,7 +46,8 @@ export function getTemplateId(): string {
 export const ENVIRONMENTS = {
   dev: {
     apiUrl: 'https://dev.rebyte.app',
-    apiKey: 'test-key', // dev mode: accepts any format, uses 'default' namespace
+    // Gateway requires real msb_ keys (no dev bypass) — put one in .env as REBYTE_SANDBOX_API_KEY
+    apiKey: process.env.REBYTE_SANDBOX_API_KEY || 'test-key',
     domain: 'dev.rebyte.app',
   },
   prod: {
