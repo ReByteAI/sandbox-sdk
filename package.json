@@ -34,11 +34,6 @@
       "import": "./dist/vm-lifecycle/VmProvider.mjs",
       "require": "./dist/vm-lifecycle/VmProvider.js",
       "types": "./dist/vm-lifecycle/VmProvider.d.ts"
-    },
-    "./vm-lifecycle/ensureVmRunning": {
-      "import": "./dist/vm-lifecycle/ensureVmRunning.mjs",
-      "require": "./dist/vm-lifecycle/ensureVmRunning.js",
-      "types": "./dist/vm-lifecycle/ensureVmRunning.d.ts"
     }
   },
   "scripts": {
