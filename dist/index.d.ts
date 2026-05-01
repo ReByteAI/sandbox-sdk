@@ -2327,6 +2327,43 @@ declare function getSignature({ path, operation, user, expirationInSeconds, envd
 }>;
 
 /**
+ * Mint a sandbox-scoped JWT for the gateway proxy path.
+ *
+ * The gateway authenticates proxy requests by HS256-verifying the token
+ * against `sha256(api_key)` for the team named in the JWT's `team_id`
+ * claim. The `sandbox_id` claim restricts the token to a single sandbox —
+ * a leaked token can only reach that one VM and only until `exp`.
+ *
+ * Use this to hand a least-privilege credential to an untrusted client
+ * (a browser, a third-party callback, a per-tenant subprocess) instead of
+ * shipping the raw API key. The Sandbox SDK itself sends the raw API key
+ * over `X-API-Key` and does not need this helper for its own traffic.
+ *
+ * @example
+ * ```ts
+ * const token = await mintSandboxToken({
+ *   apiKey: process.env.MSB_API_KEY!,
+ *   teamId: 'agentbox-production',
+ *   sandboxId: sandbox.sandboxId,
+ *   expSeconds: 600,
+ * })
+ * // ship token to the browser; browser fetches sandbox URL with
+ * // `Authorization: Bearer <token>`
+ * ```
+ */
+interface MintSandboxTokenOpts {
+    /** Root API key for the team (`msb_...`). Used as HMAC secret material. */
+    apiKey: string;
+    /** Team / org ID that owns the sandbox. Goes into the JWT `team_id` claim. */
+    teamId: string;
+    /** Sandbox the token is allowed to reach. Goes into the JWT `sandbox_id` claim. */
+    sandboxId: string;
+    /** Lifetime of the token in seconds. Defaults to 1 hour. */
+    expSeconds?: number;
+}
+declare function mintSandboxToken(opts: MintSandboxTokenOpts): Promise<string>;
+
+/**
  * @generated from message process.PTY
  */
 type PTY = Message<'process.PTY'> & {
@@ -7456,4 +7493,4 @@ declare namespace Template {
     var toDockerfile: typeof TemplateBase.toDockerfile;
 }
 
-export { ALL_TRAFFIC, ApiClient, AuthenticationError, BuildError, type BuildInfo, type BuildOptions, type CommandConnectOpts, CommandExitError, CommandHandle, type CommandRequestOpts, type CommandResult, type CommandStartOpts, Commands, ConnectionConfig, type ConnectionOpts, type CopyItem, type EntryInfo, ErrorCode, type ErrorCodeType, FileType, FileUploadError, Filesystem, type FilesystemEvent, FilesystemEventType, type GetBuildStatusOptions, InvalidArgumentError, LogEntry, LogEntryEnd, type LogEntryLevel, LogEntryStart, type Logger, type McpServer$1 as McpServer, type McpServerName, NotEnoughSpaceError, NotFoundError, type ProcessInfo, Pty, type PtyOutput, RateLimitError, ReadyCmd, Sandbox, type SandboxApiOpts, type SandboxConnectOpts, SandboxError, type SandboxInfo, type SandboxListOpts, type SandboxMetrics, type SandboxMetricsOpts, type SandboxNetworkEgressOpts, type SandboxNetworkOpts, type SandboxOpts, SandboxPaginator, type SandboxState, type Stderr, type Stdout, Template, TemplateBase, type TemplateBuilder, type TemplateClass, TemplateError, TimeoutError, type UdpEndpoint, type UdpIngressOpts, type Username, WatchHandle, type WriteInfo, type components, Sandbox as default, defaultBuildLogger, getSignature, type paths, waitForFile, waitForPort, waitForProcess, waitForTimeout, waitForURL };
+export { ALL_TRAFFIC, ApiClient, AuthenticationError, BuildError, type BuildInfo, type BuildOptions, type CommandConnectOpts, CommandExitError, CommandHandle, type CommandRequestOpts, type CommandResult, type CommandStartOpts, Commands, ConnectionConfig, type ConnectionOpts, type CopyItem, type EntryInfo, ErrorCode, type ErrorCodeType, FileType, FileUploadError, Filesystem, type FilesystemEvent, FilesystemEventType, type GetBuildStatusOptions, InvalidArgumentError, LogEntry, LogEntryEnd, type LogEntryLevel, LogEntryStart, type Logger, type McpServer$1 as McpServer, type McpServerName, type MintSandboxTokenOpts, NotEnoughSpaceError, NotFoundError, type ProcessInfo, Pty, type PtyOutput, RateLimitError, ReadyCmd, Sandbox, type SandboxApiOpts, type SandboxConnectOpts, SandboxError, type SandboxInfo, type SandboxListOpts, type SandboxMetrics, type SandboxMetricsOpts, type SandboxNetworkEgressOpts, type SandboxNetworkOpts, type SandboxOpts, SandboxPaginator, type SandboxState, type Stderr, type Stdout, Template, TemplateBase, type TemplateBuilder, type TemplateClass, TemplateError, TimeoutError, type UdpEndpoint, type UdpIngressOpts, type Username, WatchHandle, type WriteInfo, type components, Sandbox as default, defaultBuildLogger, getSignature, mintSandboxToken, type paths, waitForFile, waitForPort, waitForProcess, waitForTimeout, waitForURL };

@@ -21,6 +21,9 @@ export type { Logger } from './logs'
 
 export { getSignature } from './sandbox/signature'
 
+export { mintSandboxToken } from './sandbox/sandboxToken'
+export type { MintSandboxTokenOpts } from './sandbox/sandboxToken'
+
 export { FileType } from './sandbox/filesystem'
 export type { WriteInfo, EntryInfo, Filesystem } from './sandbox/filesystem'
 export { FilesystemEventType } from './sandbox/filesystem/watchHandle'

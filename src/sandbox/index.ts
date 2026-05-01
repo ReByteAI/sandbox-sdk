@@ -147,6 +147,12 @@ export class Sandbox extends SandboxApi {
     const sandboxHeaders = {
       'Rebyte-Sandbox-Id': this.sandboxId,
       'Rebyte-Sandbox-Port': this.envdPort.toString(),
+      // Authenticates the proxy hop at the gateway. We use X-API-Key, not
+      // Authorization, because envd's per-user header is also Authorization
+      // and the two would collide on the same request.
+      ...(this.connectionConfig.apiKey
+        ? { 'X-API-Key': this.connectionConfig.apiKey }
+        : {}),
     }
 
     // Use gRPC-Web transport which survives UFFD pause/resume
@@ -352,7 +358,7 @@ export class Sandbox extends SandboxApi {
     const config = new ConnectionConfig(opts)
 
     return new this({
-      sandboxId,
+      sandboxId: sandbox.sandboxId,
       sandboxDomain: sandbox.sandboxDomain,
       envdAccessToken: sandbox.envdAccessToken,
       trafficAccessToken: sandbox.trafficAccessToken,
@@ -383,6 +389,9 @@ export class Sandbox extends SandboxApi {
    */
   async connect(opts?: SandboxOpts): Promise<this> {
     const result = await SandboxApi.connectSandbox(this.sandboxId, { ...this.connectionConfig, ...opts })
+    ;(this as any).sandboxId = result.sandboxId
+    ;(this as any).sandboxDomain = result.sandboxDomain
+    ;(this as any).envdAccessToken = result.envdAccessToken
     this.udpEndpoint = result.udpEndpoint
 
     return this

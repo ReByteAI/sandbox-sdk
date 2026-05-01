@@ -103,6 +103,7 @@ __export(src_exports, {
   default: () => src_default,
   defaultBuildLogger: () => defaultBuildLogger,
   getSignature: () => getSignature,
+  mintSandboxToken: () => mintSandboxToken,
   waitForFile: () => waitForFile,
   waitForPort: () => waitForPort,
   waitForProcess: () => waitForProcess,
@@ -474,6 +475,59 @@ async function getSignature({
     signature,
     expiration: signatureExpiration
   };
+}
+
+// src/sandbox/sandboxToken.ts
+function utf8(s) {
+  return new TextEncoder().encode(s);
+}
+function base64url(buf) {
+  let str = "";
+  for (let i = 0; i < buf.length; i++) str += String.fromCharCode(buf[i]);
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+function bytesToHex(buf) {
+  let out = "";
+  for (let i = 0; i < buf.length; i++) {
+    out += buf[i].toString(16).padStart(2, "0");
+  }
+  return out;
+}
+async function mintSandboxToken(opts) {
+  var _a3, _b;
+  if (!opts.apiKey) throw new Error("mintSandboxToken: apiKey is required");
+  if (!opts.teamId) throw new Error("mintSandboxToken: teamId is required");
+  if (!opts.sandboxId)
+    throw new Error("mintSandboxToken: sandboxId is required");
+  const now = Math.floor(Date.now() / 1e3);
+  const header = { alg: "HS256", typ: "JWT" };
+  const payload = {
+    team_id: opts.teamId,
+    sandbox_id: opts.sandboxId,
+    exp: now + ((_a3 = opts.expSeconds) != null ? _a3 : 3600),
+    iat: now
+  };
+  const signingInput = `${base64url(utf8(JSON.stringify(header)))}.${base64url(
+    utf8(JSON.stringify(payload))
+  )}`;
+  const subtle = (_b = globalThis.crypto) == null ? void 0 : _b.subtle;
+  if (subtle) {
+    const apiKeyHashBuf = await subtle.digest("SHA-256", utf8(opts.apiKey));
+    const secret = utf8(bytesToHex(new Uint8Array(apiKeyHashBuf)));
+    const key = await subtle.importKey(
+      "raw",
+      secret,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const sigBuf = await subtle.sign("HMAC", key, utf8(signingInput));
+    return `${signingInput}.${base64url(new Uint8Array(sigBuf))}`;
+  }
+  const { createHash, createHmac } = require("crypto");
+  const apiKeyHash = createHash("sha256").update(opts.apiKey).digest("hex");
+  const sig = createHmac("sha256", apiKeyHash).update(signingInput).digest();
+  return `${signingInput}.${base64url(new Uint8Array(sig))}`;
 }
 
 // src/sandbox/filesystem/index.ts
@@ -2128,10 +2182,10 @@ var Sandbox = class extends SandboxApi {
       sandboxDomain: this.sandboxDomain,
       envdPort: this.envdPort
     });
-    const sandboxHeaders = {
+    const sandboxHeaders = __spreadValues({
       "Rebyte-Sandbox-Id": this.sandboxId,
       "Rebyte-Sandbox-Port": this.envdPort.toString()
-    };
+    }, this.connectionConfig.apiKey ? { "X-API-Key": this.connectionConfig.apiKey } : {});
     const rpcTransport = (0, import_connect_web.createGrpcWebTransport)({
       baseUrl: this.envdApiUrl,
       useBinaryFormat: true,
@@ -2261,7 +2315,7 @@ var Sandbox = class extends SandboxApi {
     const sandbox = await SandboxApi.connectSandbox(sandboxId, opts);
     const config = new ConnectionConfig(opts);
     return new this(__spreadValues({
-      sandboxId,
+      sandboxId: sandbox.sandboxId,
       sandboxDomain: sandbox.sandboxDomain,
       envdAccessToken: sandbox.envdAccessToken,
       trafficAccessToken: sandbox.trafficAccessToken,
@@ -2290,6 +2344,9 @@ var Sandbox = class extends SandboxApi {
    */
   async connect(opts) {
     const result = await SandboxApi.connectSandbox(this.sandboxId, __spreadValues(__spreadValues({}, this.connectionConfig), opts));
+    this.sandboxId = result.sandboxId;
+    this.sandboxDomain = result.sandboxDomain;
+    this.envdAccessToken = result.envdAccessToken;
     this.udpEndpoint = result.udpEndpoint;
     return this;
   }
@@ -4077,6 +4134,7 @@ var src_default = Sandbox;
   TimeoutError,
   defaultBuildLogger,
   getSignature,
+  mintSandboxToken,
   waitForFile,
   waitForPort,
   waitForProcess,
