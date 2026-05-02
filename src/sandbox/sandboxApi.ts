@@ -175,8 +175,14 @@ export type SandboxNetworkOpts = {
   egress?: SandboxNetworkEgressOpts
 
   /**
-   * Specify if the sandbox URLs should be accessible only with authentication.
-   * @default true
+   * If true, the sandbox's user-app proxy URLs accept requests without
+   * authentication — knowing the URL is the credential. Useful for embed
+   * / iframe scenarios where the browser cannot attach an Authorization
+   * header on navigation or subresource loads. The envd RPC port (49983)
+   * always requires authentication regardless. Public sandboxes can be
+   * auto-resumed by any caller, so the owner pays the wake cost; access
+   * is logged for audit.
+   * @default false
    */
   allowPublicTraffic?: boolean
 
@@ -891,7 +897,6 @@ export class SandboxApi {
       sandboxDomain: res.data!.domain || undefined,
       envdVersion: res.data!.envdVersion,
       envdAccessToken: res.data!.envdAccessToken,
-      trafficAccessToken: res.data!.trafficAccessToken || undefined,
       udpEndpoint: (res.data as any)?.udpEndpoint as UdpEndpoint | undefined,
     }
   }
@@ -957,7 +962,6 @@ export class SandboxApi {
       sandboxDomain: res.data!.domain || undefined,
       envdVersion: res.data!.envdVersion,
       envdAccessToken: res.data!.envdAccessToken,
-      trafficAccessToken: res.data!.trafficAccessToken || undefined,
       udpEndpoint: (res.data as any)?.udpEndpoint as UdpEndpoint | undefined,
     }
   }
@@ -1014,7 +1018,6 @@ export class SandboxApi {
       sandboxDomain: res.data!.domain || undefined,
       envdVersion: res.data!.envdVersion,
       envdAccessToken: res.data!.envdAccessToken,
-      trafficAccessToken: res.data!.trafficAccessToken || undefined,
       udpEndpoint: (res.data as any)?.udpEndpoint as UdpEndpoint | undefined,
     }
   }

@@ -91,11 +91,6 @@ export class Sandbox extends SandboxApi {
   readonly sandboxDomain: string
 
   /**
-   * Traffic access token for accessing sandbox services with restricted public traffic.
-   */
-  readonly trafficAccessToken?: string
-
-  /**
    * Allocated public UDP endpoint for media ingress (WebRTC/RTP).
    * Only set when the sandbox was created with `network.udpIngress.enabled: true`.
    * Updated on reconnect/resume if the backend allocates a new port.
@@ -125,7 +120,6 @@ export class Sandbox extends SandboxApi {
       sandboxDomain?: string
       envdVersion: string
       envdAccessToken?: string
-      trafficAccessToken?: string
       udpEndpoint?: UdpEndpoint
     }
   ) {
@@ -137,7 +131,6 @@ export class Sandbox extends SandboxApi {
     this.sandboxDomain = opts.sandboxDomain ?? this.connectionConfig.domain
 
     this.envdAccessToken = opts.envdAccessToken
-    this.trafficAccessToken = opts.trafficAccessToken
     this.udpEndpoint = opts.udpEndpoint
     this.envdApiUrl = this.connectionConfig.getSandboxUrl(this.sandboxId, {
       sandboxDomain: this.sandboxDomain,
@@ -361,7 +354,6 @@ export class Sandbox extends SandboxApi {
       sandboxId: sandbox.sandboxId,
       sandboxDomain: sandbox.sandboxDomain,
       envdAccessToken: sandbox.envdAccessToken,
-      trafficAccessToken: sandbox.trafficAccessToken,
       udpEndpoint: sandbox.udpEndpoint,
       envdVersion: sandbox.envdVersion,
       ...config,
