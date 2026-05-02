@@ -2026,6 +2026,62 @@ var SandboxApi = class {
     };
   }
   /**
+   * Fork a paused/hibernated sandbox into a new sandbox that cold-boots from
+   * the source's latest snapshot. Source must already be paused or hibernated.
+   * The new sandbox inherits the source's namespace and base template; vCPU
+   * and memory default to the source's values unless overridden in opts.
+   *
+   * Cross-namespace forks are rejected (404).
+   */
+  static async forkSandbox(sourceSandboxId, timeoutMs, opts) {
+    var _a3, _c, _d, _e;
+    const config = new ConnectionConfig(opts);
+    const client = new ApiClient(config);
+    const _b = (_a3 = opts == null ? void 0 : opts.network) != null ? _a3 : {}, { udpIngress } = _b, networkRest = __objRest(_b, ["udpIngress"]);
+    const networkBody = Object.keys(networkRest).length > 0 ? networkRest : void 0;
+    const res = await client.api.POST("/sandboxes/{sandboxID}/fork", {
+      params: {
+        path: {
+          sandboxID: sourceSandboxId
+        }
+      },
+      body: {
+        autoPauseMode: (_c = opts == null ? void 0 : opts.autoPauseMode) != null ? _c : "pause",
+        sandboxID: opts == null ? void 0 : opts.sandboxId,
+        metadata: opts == null ? void 0 : opts.metadata,
+        envVars: opts == null ? void 0 : opts.envs,
+        timeout: timeoutToSeconds(timeoutMs),
+        network: networkBody,
+        udpIngress,
+        webhookUrl: opts == null ? void 0 : opts.webhookUrl
+      },
+      signal: config.getSignal(opts == null ? void 0 : opts.requestTimeoutMs)
+    });
+    if (((_d = res.error) == null ? void 0 : _d.code) === 404) {
+      throw new NotFoundError(
+        `Source sandbox ${sourceSandboxId} not found or has no snapshot \u2014 pause or hibernate it before forking`
+      );
+    }
+    const err = handleApiError(res);
+    if (err) {
+      throw err;
+    }
+    if ((0, import_compare_versions4.compareVersions)(res.data.envdVersion, "0.1.0") < 0) {
+      await this.kill(res.data.sandboxID, opts);
+      throw new TemplateError(
+        "You need to update the template to use the new SDK."
+      );
+    }
+    return {
+      sandboxId: res.data.sandboxID,
+      sandboxDomain: res.data.domain || void 0,
+      envdVersion: res.data.envdVersion,
+      envdAccessToken: res.data.envdAccessToken,
+      trafficAccessToken: res.data.trafficAccessToken || void 0,
+      udpEndpoint: (_e = res.data) == null ? void 0 : _e.udpEndpoint
+    };
+  }
+  /**
    * Connect to an existing sandbox. Automatically resumes paused sandboxes.
    *
    * Resume behavior depends on what the snapshot contains:
@@ -2349,6 +2405,45 @@ var Sandbox = class extends SandboxApi {
     this.envdAccessToken = result.envdAccessToken;
     this.udpEndpoint = result.udpEndpoint;
     return this;
+  }
+  /**
+   * Fork this sandbox into a new sandbox cold-booted from this sandbox's
+   * latest snapshot.
+   *
+   * **Source must be paused or hibernated first.** Calling `fork()` on a
+   * running sandbox throws `NotFoundError` ("source has no snapshot").
+   *
+   * The new sandbox is independent: subsequent writes in either sandbox don't
+   * affect the other. The new sandbox inherits the source's namespace and
+   * base template; vCPU/memory default to the source's values unless
+   * overridden in `opts`.
+   *
+   * @param opts options for the new sandbox (sandboxId, timeoutMs, metadata,
+   *   envs, network, autoPauseMode, vcpu, memoryMb, etc.). Templates and
+   *   buildId are derived server-side from the source's snapshot.
+   *
+   * @returns A new Sandbox instance for the forked sandbox.
+   *
+   * @example
+   * ```ts
+   * const src = await Sandbox.create()
+   * await src.files.write('/home/user/marker.txt', 'hello', { user: 'user' })
+   * await src.hibernate()                       // freeze source's rootfs
+   * const branch = await src.fork({ sandboxId: 'branch-1' })
+   * const text = await branch.files.read('/home/user/marker.txt', { user: 'user' })
+   * // text === 'hello' — branch starts from source's snapshot
+   * ```
+   */
+  async fork(opts) {
+    var _a3;
+    const merged = __spreadValues(__spreadValues({}, this.connectionConfig), opts);
+    const sandboxInfo = await SandboxApi.forkSandbox(
+      this.sandboxId,
+      (_a3 = opts == null ? void 0 : opts.timeoutMs) != null ? _a3 : this.constructor.defaultSandboxTimeoutMs,
+      merged
+    );
+    const config = new ConnectionConfig(merged);
+    return new this.constructor(__spreadValues(__spreadValues({}, sandboxInfo), config));
   }
   /**
    * Get the host address for the specified sandbox port.

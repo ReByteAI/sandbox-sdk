@@ -5836,6 +5836,22 @@ declare class SandboxApi {
         udpEndpoint: UdpEndpoint | undefined;
     }>;
     /**
+     * Fork a paused/hibernated sandbox into a new sandbox that cold-boots from
+     * the source's latest snapshot. Source must already be paused or hibernated.
+     * The new sandbox inherits the source's namespace and base template; vCPU
+     * and memory default to the source's values unless overridden in opts.
+     *
+     * Cross-namespace forks are rejected (404).
+     */
+    protected static forkSandbox(sourceSandboxId: string, timeoutMs: number, opts?: SandboxOpts): Promise<{
+        sandboxId: any;
+        sandboxDomain: any;
+        envdVersion: any;
+        envdAccessToken: any;
+        trafficAccessToken: any;
+        udpEndpoint: UdpEndpoint | undefined;
+    }>;
+    /**
      * Connect to an existing sandbox. Automatically resumes paused sandboxes.
      *
      * Resume behavior depends on what the snapshot contains:
@@ -6344,6 +6360,35 @@ declare class Sandbox extends SandboxApi {
      * ```
      */
     connect(opts?: SandboxOpts): Promise<this>;
+    /**
+     * Fork this sandbox into a new sandbox cold-booted from this sandbox's
+     * latest snapshot.
+     *
+     * **Source must be paused or hibernated first.** Calling `fork()` on a
+     * running sandbox throws `NotFoundError` ("source has no snapshot").
+     *
+     * The new sandbox is independent: subsequent writes in either sandbox don't
+     * affect the other. The new sandbox inherits the source's namespace and
+     * base template; vCPU/memory default to the source's values unless
+     * overridden in `opts`.
+     *
+     * @param opts options for the new sandbox (sandboxId, timeoutMs, metadata,
+     *   envs, network, autoPauseMode, vcpu, memoryMb, etc.). Templates and
+     *   buildId are derived server-side from the source's snapshot.
+     *
+     * @returns A new Sandbox instance for the forked sandbox.
+     *
+     * @example
+     * ```ts
+     * const src = await Sandbox.create()
+     * await src.files.write('/home/user/marker.txt', 'hello', { user: 'user' })
+     * await src.hibernate()                       // freeze source's rootfs
+     * const branch = await src.fork({ sandboxId: 'branch-1' })
+     * const text = await branch.files.read('/home/user/marker.txt', { user: 'user' })
+     * // text === 'hello' — branch starts from source's snapshot
+     * ```
+     */
+    fork<S extends Sandbox = this>(opts?: SandboxOpts): Promise<S>;
     /**
      * Get the host address for the specified sandbox port.
      * You can then use this address to connect to the sandbox port from outside the sandbox via HTTP or WebSocket.

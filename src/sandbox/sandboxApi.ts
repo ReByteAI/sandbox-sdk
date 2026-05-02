@@ -897,6 +897,72 @@ export class SandboxApi {
   }
 
   /**
+   * Fork a paused/hibernated sandbox into a new sandbox that cold-boots from
+   * the source's latest snapshot. Source must already be paused or hibernated.
+   * The new sandbox inherits the source's namespace and base template; vCPU
+   * and memory default to the source's values unless overridden in opts.
+   *
+   * Cross-namespace forks are rejected (404).
+   */
+  protected static async forkSandbox(
+    sourceSandboxId: string,
+    timeoutMs: number,
+    opts?: SandboxOpts
+  ) {
+    const config = new ConnectionConfig(opts)
+    const client = new ApiClient(config)
+
+    const { udpIngress, ...networkRest } = opts?.network ?? {} as SandboxNetworkOpts
+    const networkBody = Object.keys(networkRest).length > 0 ? networkRest : undefined
+
+    const res = await client.api.POST('/sandboxes/{sandboxID}/fork' as any, {
+      params: {
+        path: {
+          sandboxID: sourceSandboxId,
+        },
+      },
+      body: {
+        autoPauseMode: opts?.autoPauseMode ?? 'pause',
+        sandboxID: opts?.sandboxId,
+        metadata: opts?.metadata,
+        envVars: opts?.envs,
+        timeout: timeoutToSeconds(timeoutMs),
+        network: networkBody,
+        udpIngress,
+        webhookUrl: opts?.webhookUrl,
+      } as any,
+      signal: config.getSignal(opts?.requestTimeoutMs),
+    })
+
+    if (res.error?.code === 404) {
+      throw new NotFoundError(
+        `Source sandbox ${sourceSandboxId} not found or has no snapshot — pause or hibernate it before forking`
+      )
+    }
+
+    const err = handleApiError(res)
+    if (err) {
+      throw err
+    }
+
+    if (compareVersions(res.data!.envdVersion, '0.1.0') < 0) {
+      await this.kill(res.data!.sandboxID, opts)
+      throw new TemplateError(
+        'You need to update the template to use the new SDK.'
+      )
+    }
+
+    return {
+      sandboxId: res.data!.sandboxID,
+      sandboxDomain: res.data!.domain || undefined,
+      envdVersion: res.data!.envdVersion,
+      envdAccessToken: res.data!.envdAccessToken,
+      trafficAccessToken: res.data!.trafficAccessToken || undefined,
+      udpEndpoint: (res.data as any)?.udpEndpoint as UdpEndpoint | undefined,
+    }
+  }
+
+  /**
    * Connect to an existing sandbox. Automatically resumes paused sandboxes.
    *
    * Resume behavior depends on what the snapshot contains:
