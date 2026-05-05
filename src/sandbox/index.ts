@@ -169,6 +169,13 @@ export class Sandbox extends SandboxApi {
         if (this.envdAccessToken) {
           headers.append('X-Access-Token', this.envdAccessToken)
         }
+        // Gateway proxy at <sandboxId>-<port>.<domain> requires X-API-Key
+        // (or Authorization: Bearer) to authenticate the team owning this
+        // sandbox. X-Access-Token alone is only honoured at portal, never
+        // gets there if the gateway rejects with 401 first.
+        if (this.connectionConfig.apiKey) {
+          headers.append('X-API-Key', this.connectionConfig.apiKey)
+        }
 
         options = {
           ...(options ?? {}),
@@ -189,6 +196,11 @@ export class Sandbox extends SandboxApi {
           ...sandboxHeaders,
           ...(this.envdAccessToken
             ? { 'X-Access-Token': this.envdAccessToken }
+            : {}),
+          // Same reasoning as in the gRPC fetch override above: the
+          // gateway proxy needs X-API-Key to authenticate the team.
+          ...(this.connectionConfig.apiKey
+            ? { 'X-API-Key': this.connectionConfig.apiKey }
             : {}),
         },
       },
