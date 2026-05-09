@@ -27,10 +27,13 @@ import { Sandbox } from '../../src'
  * Template IDs - same for all environments (shared GCS bucket)
  */
 /**
- * Default template: simple debian (rootfs-only, cold boot).
- * Override with TEST_TEMPLATE_ID env var.
+ * Default template: build_id of the currently `is_active=true` row in
+ * system_templates (`upgrade-2026-04-29`). Override with TEST_TEMPLATE_ID.
+ * Older hardcoded template UUIDs in this repo (69e930b1, 411e2c1a, 7a24777d,
+ * 28cf6050, 0c9aac1b, b5ae1676, d1da65c4) all point at templates that have
+ * been deleted from GCS — every test now resolves through this single value.
  */
-const DEFAULT_TEMPLATE_ID = '69e930b1-1427-44f7-a5c7-080b791a0a24'
+const DEFAULT_TEMPLATE_ID = '7cf822c5-eb85-4fb8-838f-070abb563f75'
 
 export function getTemplateId(): string {
   return process.env.TEST_TEMPLATE_ID || DEFAULT_TEMPLATE_ID
@@ -176,5 +179,9 @@ export async function createTestSandbox(options: {
  * Get namespace for current environment.
  */
 export function getNamespace(): string {
-  return getEnvironment() === 'prod' ? 'test-org' : 'default'
+  // Namespace = the org_id of the team_api_keys row used for the request.
+  // dev uses REBYTE_SANDBOX_ORG_ID (org_test_deploy by default) so GCS/NFS
+  // path lookups in tests match what the gateway/orch actually write.
+  if (getEnvironment() === 'prod') return 'test-org'
+  return process.env.REBYTE_SANDBOX_ORG_ID || 'org_test_deploy'
 }

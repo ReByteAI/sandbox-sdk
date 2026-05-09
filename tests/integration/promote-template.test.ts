@@ -19,7 +19,7 @@ import {
 } from './common'
 
 const gatewayConfig = getGatewayConfig()
-const TEMPLATE_ID = '69e930b1-1427-44f7-a5c7-080b791a0a24'
+const TEMPLATE_ID = getTemplateId()
 
 describe('Promote Template', () => {
   beforeAll(async () => {

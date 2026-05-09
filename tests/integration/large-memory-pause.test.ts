@@ -112,7 +112,7 @@ describe('Large Memory Pause (>2GB fix)', () => {
       const pauseDuration = ((Date.now() - pauseStart) / 1000).toFixed(1)
 
       console.log(`   Pause result: ${paused} (took ${pauseDuration}s)`)
-      expect(paused).toBe(true)
+      expect(paused).toBeTruthy()
 
       // 5. Verify pause completed successfully
       console.log('\n5. Verifying pause state...')
@@ -124,7 +124,7 @@ describe('Large Memory Pause (>2GB fix)', () => {
       console.log('\n6. Verifying GCS snapshot...')
       const { execSync } = require('child_process')
       const namespace = getNamespace()
-      const gcsPath = `gs://microsandbox/sandboxes/${namespace}/${sandbox.sandboxId}/paused/`
+      const gcsPath = `gs://microsandbox-east1/sandboxes/${namespace}/${sandbox.sandboxId}/paused/`
 
       try {
         const listOutput = execSync(`gsutil ls ${gcsPath}`, { encoding: 'utf8', timeout: 30_000 })

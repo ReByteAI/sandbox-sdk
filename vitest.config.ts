@@ -7,8 +7,10 @@ export default defineConfig({
     // when running integration tests that create VMs
     fileParallelism: false,
 
-    // Increase timeout for integration tests (VMs take time to start/pause)
-    testTimeout: 300_000, // 5 minutes
+    // Per-test cap. 2 minutes is enough for any single create/pause/resume
+    // cycle on dev; tests that overrun are stuck on a poll loop or hung work
+    // and we'd rather see them fail fast than block the whole suite.
+    testTimeout: 120_000, // 2 minutes
 
     // Hook timeout for beforeAll/afterAll
     hookTimeout: 120_000, // 2 minutes

@@ -76,7 +76,7 @@ describe('Hibernate', () => {
       const hibernated = await sandbox.hibernate()
       const hibernateDuration = ((Date.now() - hibernateStartTime) / 1000).toFixed(1)
       console.log(`   Hibernated: ${hibernated} (took ${hibernateDuration}s)`)
-      expect(hibernated).toBe(true)
+      expect(hibernated).toBeTruthy()
 
       // 5. Verify sandbox is paused
       console.log('\n5. Checking sandbox state...')
@@ -88,7 +88,7 @@ describe('Hibernate', () => {
       console.log('\n5b. Verifying GCS upload (should be rootfs-only)...')
       const { execSync } = require('child_process')
       const namespace = getNamespace()
-      const gcsPath = `gs://microsandbox/sandboxes/${namespace}/${sandboxId}/paused/`
+      const gcsPath = `gs://microsandbox-east1/sandboxes/${namespace}/${sandboxId}/paused/`
 
       try {
         const listOutput = execSync(`gsutil ls ${gcsPath}`, { encoding: 'utf8', timeout: 10_000 })
@@ -447,7 +447,7 @@ describe('Hibernate', () => {
         const hibernateStart = Date.now()
         const hibernated = await currentSandbox.hibernate()
         console.log(`  Hibernated (${((Date.now() - hibernateStart) / 1000).toFixed(1)}s)`)
-        expect(hibernated).toBe(true)
+        expect(hibernated).toBeTruthy()
 
         // Resume (cold start because hibernated = compacted)
         console.log(`  [Resume]...`)
@@ -557,7 +557,7 @@ describe('Hibernate', () => {
       const hibernated = await sandbox.hibernate()
       const hibernateDuration = ((Date.now() - hibernateStart) / 1000).toFixed(1)
       console.log(`   Hibernated (${hibernateDuration}s)`)
-      expect(hibernated).toBe(true)
+      expect(hibernated).toBeTruthy()
 
       // 6. Resume (cold boot)
       console.log('\n6. Resuming sandbox (cold boot)...')

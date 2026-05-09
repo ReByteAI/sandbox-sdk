@@ -10,10 +10,10 @@
  */
 import { describe, test, expect } from 'vitest'
 import { Sandbox } from '../../src'
-import { getGatewayConfig } from './common'
+import { getGatewayConfig, getTemplateId } from './common'
 
 const gatewayConfig = getGatewayConfig()
-const TEMPLATE_4GB = '28cf6050-622f-460e-8342-dac8a8b8526f'
+const TEMPLATE_4GB = getTemplateId()
 
 function pad(ms: number): string {
   return `${String(Math.round(ms)).padStart(6)}ms`

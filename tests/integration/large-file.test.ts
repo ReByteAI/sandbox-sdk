@@ -8,13 +8,13 @@ import { describe, test, expect, beforeAll } from 'vitest'
 import { Sandbox } from '../../src'
 import {
   getGatewayConfig,
+  getTemplateId,
   printTestHeader,
   ensureProdApiKey,
 } from './common'
 
 const gatewayConfig = getGatewayConfig()
-// Use the new template with fixed portal (100MB upload limit)
-const TEMPLATE_ID = '411e2c1a-c561-4419-b791-33216034fdcc'
+const TEMPLATE_ID = getTemplateId()
 
 describe('Large File Upload', () => {
   beforeAll(async () => {

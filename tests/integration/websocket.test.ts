@@ -13,13 +13,11 @@
 import { describe, it, expect } from 'vitest'
 import { Sandbox } from '../../src'
 import WebSocket from 'ws'
-import { getGatewayConfig } from './common'
+import { getGatewayConfig, getTemplateId } from './common'
 
 const gatewayConfig = getGatewayConfig()
 
-// Use large template for WebSocket test (has Python 3)
-// Large template ID from common.ts
-const LARGE_TEMPLATE_ID = '7a24777d-8ddf-436e-a80f-d77c2eccb598'
+const LARGE_TEMPLATE_ID = getTemplateId()
 
 describe('WebSocket Proxy', () => {
   // Test 1: Direct WebSocket to gateway (no proxy)

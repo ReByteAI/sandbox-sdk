@@ -2,6 +2,7 @@ import { test } from 'vitest'
 
 import Sandbox from '../../src/index.js'
 import { isIntegrationTest, wait } from '../setup.js'
+import { getTemplateId, getGatewayConfig } from './common'
 
 const heavyArray = new ArrayBuffer(256 * 1024 * 1024) // 256 MiB = 256 * 1024 * 1024 bytes
 const view = new Uint8Array(heavyArray)
@@ -9,7 +10,8 @@ for (let i = 0; i < view.length; i++) {
   view[i] = Math.floor(Math.random() * 256)
 }
 
-const integrationTestTemplate = 'integration-test-v1'
+const integrationTestTemplate = getTemplateId()
+const gatewayConfig = getGatewayConfig()
 const sanboxCount = 10
 
 test.skipIf(!isIntegrationTest)(
@@ -18,7 +20,7 @@ test.skipIf(!isIntegrationTest)(
     const promises: Array<Promise<string | void>> = []
     for (let i = 0; i < sanboxCount; i++) {
       promises.push(
-        Sandbox.create(integrationTestTemplate, { timeoutMs: 60 })
+        Sandbox.create(integrationTestTemplate, { ...gatewayConfig, timeoutMs: 60_000 })
           .then((sbx) => {
             console.log(sbx.sandboxId)
             return sbx.files
@@ -38,7 +40,7 @@ test.skipIf(!isIntegrationTest)('stress requests to nextjs app', async () => {
 
   for (let i = 0; i < sanboxCount; i++) {
     hostPromises.push(
-      Sandbox.create(integrationTestTemplate, { timeoutMs: 60_000 }).then(
+      Sandbox.create(integrationTestTemplate, { ...gatewayConfig, timeoutMs: 60_000 }).then(
         (sbx) => {
           console.log('created sandbox', sbx.sandboxId)
           return new Promise((resolve, reject) => {

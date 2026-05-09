@@ -350,7 +350,10 @@ describe('Advanced Edge Cases', () => {
     console.log(`   Result 1: ${result1.success ? 'SUCCESS' : 'FAILED'} - ${result1.error?.message || 'ok'}`)
     console.log(`   Result 2: ${result2.success ? 'SUCCESS' : 'FAILED'} - ${result2.error?.message || 'ok'}`)
 
-    // Exactly one should succeed, one should fail
+    // Idempotent join semantics: both concurrent resumes target the same
+    // end state (sandbox running). The second one sees the first's transition
+    // already in flight (or already done) and joins it rather than failing.
+    // Both should succeed.
     const successes = [result1, result2].filter(r => r.success)
     const failures = [result1, result2].filter(r => !r.success)
 
@@ -358,19 +361,18 @@ describe('Advanced Edge Cases', () => {
     console.log(`   Successes: ${successes.length}`)
     console.log(`   Failures: ${failures.length}`)
 
-    expect(successes.length).toBe(1)
-    expect(failures.length).toBe(1)
+    expect(successes.length).toBe(2)
+    expect(failures.length).toBe(0)
 
-    const failedResult = failures[0]
-    console.log(`   Failure reason: ${failedResult.error?.message}`)
-
-    // Cleanup the successful sandbox
-    const successfulSandbox = successes[0].sandbox
-    if (successfulSandbox) {
-      console.log('\n5. Cleaning up successful sandbox...')
-      await successfulSandbox.kill()
-      console.log('   Sandbox killed')
+    // Cleanup any sandboxes returned by either resume (they may be the same
+    // logical sandbox; kill once is enough but the SDK handles a second kill
+    // as a no-op).
+    for (const s of successes) {
+      if (s.sandbox) {
+        try { await s.sandbox.kill() } catch {}
+      }
     }
+    console.log('\n5. Cleaned up.')
 
     console.log('\n=== Test Passed ===')
   }, 180_000)
