@@ -8,7 +8,6 @@ export default defineWorkspace([
       include: ['tests/**/*.test.ts'],
       exclude: [
         'tests/runtimes/**',
-        'tests/integration/**',
         'tests/template/**',
         'tests/connectionConfig.test.ts',
       ],
@@ -48,14 +47,6 @@ export default defineWorkspace([
       include: ['tests/runtimes/edge/**/*.{test,spec}.ts'],
       name: 'node',
       environment: 'edge-runtime',
-    },
-  },
-  {
-    test: {
-      include: ['tests/integration/**/*.test.ts'],
-      globals: false,
-      testTimeout: 60_000,
-      environment: 'node',
     },
   },
   {

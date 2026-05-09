@@ -1,3 +1,5 @@
 // NOT WORKING - DO NOT USE
-// Use tests/integration/common.ts instead for proper template configuration
+// Integration tests have moved to the microsandbox repo
+// (microsandbox/integration-tests/) — see tests/common.ts there for
+// proper template configuration.
 export const template = 'base'
