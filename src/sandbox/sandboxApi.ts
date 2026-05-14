@@ -189,7 +189,7 @@ export type SandboxNetworkOpts = {
   /** Specify host mask which will be used for all sandbox requests in the header.
    * You can use the ${PORT} variable that will be replaced with the actual port number of the service.
    *
-   * @default ${PORT}-sandboxid.rebyte.app
+   * @default ${PORT}-${sandboxID}.${domain}
    */
   maskRequestHost?: string
 
@@ -237,7 +237,14 @@ export interface SandboxApiOpts
   extends Partial<
     Pick<
       ConnectionOpts,
-      'apiKey' | 'headers' | 'debug' | 'domain' | 'requestTimeoutMs'
+      | 'apiKey'
+      | 'accessToken'
+      | 'headers'
+      | 'debug'
+      | 'domain'
+      | 'apiUrl'
+      | 'sandboxUrl'
+      | 'requestTimeoutMs'
     >
   > {}
 

@@ -4,12 +4,18 @@
 // mintSandboxToken produces a token the gateway accepts on the proxy
 // path while a sibling sandbox's token is rejected.
 //
-// Required env: REBYTE_SANDBOX_API_KEY, TEAM_ID
-// Optional: API_URL (default https://dev.rebyte.app), TEST_TEMPLATE_ID
+// Required env: REBYTE_SANDBOX_API_KEY, TEAM_ID, and either SANDBOX_API_URL,
+// API_URL, or SANDBOX_DOMAIN.
+// Optional: TEST_TEMPLATE_ID
 
 import { Sandbox, mintSandboxToken } from '../dist/index.mjs'
 
-const API_URL = process.env.API_URL || 'https://dev.rebyte.app'
+const DOMAIN = process.env.SANDBOX_DOMAIN || process.env.REBYTE_SANDBOX_DOMAIN
+const API_URL =
+  process.env.SANDBOX_API_URL ||
+  process.env.REBYTE_SANDBOX_API_URL ||
+  process.env.API_URL ||
+  (DOMAIN ? `https://${DOMAIN}` : undefined)
 const API_KEY = process.env.REBYTE_SANDBOX_API_KEY
 const TEAM_ID = process.env.TEAM_ID
 const TEMPLATE_ID = process.env.TEST_TEMPLATE_ID
@@ -18,12 +24,16 @@ if (!API_KEY) {
   console.error('REBYTE_SANDBOX_API_KEY is required')
   process.exit(1)
 }
+if (!API_URL) {
+  console.error('SANDBOX_API_URL, API_URL, or SANDBOX_DOMAIN is required')
+  process.exit(1)
+}
 if (!TEAM_ID) {
   console.error('TEAM_ID is required')
   process.exit(1)
 }
 
-const domain = new URL(API_URL).host
+const domain = DOMAIN || new URL(API_URL).host
 
 const opts = {
   apiKey: API_KEY,

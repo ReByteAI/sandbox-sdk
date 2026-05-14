@@ -59,6 +59,10 @@ export type AuthOptions = {
    * Domain of the rebyte-sandbox API.
    */
   domain?: string
+  /**
+   * Full URL of the rebyte-sandbox API.
+   */
+  apiUrl?: string
 }
 
 /**

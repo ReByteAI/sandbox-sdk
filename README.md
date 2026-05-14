@@ -61,3 +61,9 @@ pnpm build     # tsup → dist/
 
 `vm-lifecycle/` ships as source `.ts/.tsx`; consumers TypeScript-compile it
 directly.
+
+## Endpoint configuration
+
+The SDK does not bake in a hosted API domain. Configure the endpoint by setting
+`SANDBOX_DOMAIN` or `SANDBOX_API_URL`, or pass `domain` / `apiUrl` when creating
+or connecting to a sandbox.

@@ -308,18 +308,55 @@ var REQUEST_TIMEOUT_MS = 12e4;
 var DEFAULT_SANDBOX_TIMEOUT_MS = 3e5;
 var KEEPALIVE_PING_INTERVAL_SEC = 50;
 var KEEPALIVE_PING_HEADER = "Keepalive-Ping-Interval";
+var SANDBOX_DOMAIN_ENV_VAR = "SANDBOX_DOMAIN";
+var SANDBOX_API_URL_ENV_VAR = "SANDBOX_API_URL";
+var LEGACY_SANDBOX_DOMAIN_ENV_VAR = "REBYTE_SANDBOX_DOMAIN";
+var LEGACY_SANDBOX_API_URL_ENV_VAR = "REBYTE_SANDBOX_API_URL";
+function nonEmpty(value) {
+  const trimmed = value == null ? void 0 : value.trim();
+  return trimmed ? trimmed : void 0;
+}
+function getEnvValue(...names) {
+  if (typeof process === "undefined" || !process.env) {
+    return void 0;
+  }
+  for (const name of names) {
+    const value = nonEmpty(process.env[name]);
+    if (value) {
+      return value;
+    }
+  }
+  return void 0;
+}
+function getDomainFromApiUrl(apiUrl) {
+  if (!apiUrl) {
+    return void 0;
+  }
+  try {
+    return new URL(apiUrl).host;
+  } catch (e) {
+    return void 0;
+  }
+}
+function missingSandboxDomain() {
+  throw new Error(
+    `Sandbox API domain is required. Pass \`domain\` or \`apiUrl\`, or set ${SANDBOX_DOMAIN_ENV_VAR} or ${SANDBOX_API_URL_ENV_VAR}.`
+  );
+}
 var ConnectionConfig = class {
   constructor(opts) {
     var _a3, _b;
     this.apiKey = opts == null ? void 0 : opts.apiKey;
     this.debug = (_a3 = opts == null ? void 0 : opts.debug) != null ? _a3 : false;
-    this.domain = (opts == null ? void 0 : opts.domain) || "prod.rebyte.app";
+    const apiUrl = nonEmpty(opts == null ? void 0 : opts.apiUrl) || getEnvValue(SANDBOX_API_URL_ENV_VAR, LEGACY_SANDBOX_API_URL_ENV_VAR);
+    const domain = nonEmpty(opts == null ? void 0 : opts.domain) || getEnvValue(SANDBOX_DOMAIN_ENV_VAR, LEGACY_SANDBOX_DOMAIN_ENV_VAR) || getDomainFromApiUrl(apiUrl);
+    this.domain = domain != null ? domain : this.debug ? "localhost" : missingSandboxDomain();
     this.accessToken = opts == null ? void 0 : opts.accessToken;
     this.requestTimeoutMs = (_b = opts == null ? void 0 : opts.requestTimeoutMs) != null ? _b : REQUEST_TIMEOUT_MS;
     this.logger = opts == null ? void 0 : opts.logger;
     this.headers = (opts == null ? void 0 : opts.headers) || {};
     this.headers["User-Agent"] = `rebyte-sandbox-js-sdk/${version}`;
-    this.apiUrl = (opts == null ? void 0 : opts.apiUrl) || (this.debug ? "http://localhost:3000" : `https://${this.domain}`);
+    this.apiUrl = apiUrl || (this.debug ? "http://localhost:3000" : `https://${this.domain}`);
     this.sandboxUrl = opts == null ? void 0 : opts.sandboxUrl;
   }
   getSignal(requestTimeoutMs) {
@@ -1939,7 +1976,6 @@ var SandboxApi = class {
       sandboxDomain: res.data.domain || void 0,
       envdVersion: res.data.envdVersion,
       envdAccessToken: res.data.envdAccessToken,
-      trafficAccessToken: res.data.trafficAccessToken || void 0,
       udpEndpoint: (_f = res.data) == null ? void 0 : _f.udpEndpoint
     };
   }
@@ -1995,7 +2031,6 @@ var SandboxApi = class {
       sandboxDomain: res.data.domain || void 0,
       envdVersion: res.data.envdVersion,
       envdAccessToken: res.data.envdAccessToken,
-      trafficAccessToken: res.data.trafficAccessToken || void 0,
       udpEndpoint: (_e = res.data) == null ? void 0 : _e.udpEndpoint
     };
   }
@@ -2044,7 +2079,6 @@ var SandboxApi = class {
       sandboxDomain: res.data.domain || void 0,
       envdVersion: res.data.envdVersion,
       envdAccessToken: res.data.envdAccessToken,
-      trafficAccessToken: res.data.trafficAccessToken || void 0,
       udpEndpoint: (_e = res.data) == null ? void 0 : _e.udpEndpoint
     };
   }
@@ -2150,7 +2184,6 @@ var Sandbox = class extends SandboxApi {
     this.sandboxId = opts.sandboxId;
     this.sandboxDomain = (_a3 = opts.sandboxDomain) != null ? _a3 : this.connectionConfig.domain;
     this.envdAccessToken = opts.envdAccessToken;
-    this.trafficAccessToken = opts.trafficAccessToken;
     this.udpEndpoint = opts.udpEndpoint;
     this.envdApiUrl = this.connectionConfig.getSandboxUrl(this.sandboxId, {
       sandboxDomain: this.sandboxDomain,
@@ -2292,7 +2325,6 @@ var Sandbox = class extends SandboxApi {
       sandboxId: sandbox.sandboxId,
       sandboxDomain: sandbox.sandboxDomain,
       envdAccessToken: sandbox.envdAccessToken,
-      trafficAccessToken: sandbox.trafficAccessToken,
       udpEndpoint: sandbox.udpEndpoint,
       envdVersion: sandbox.envdVersion
     }, config));
@@ -3390,6 +3422,7 @@ var TemplateBase = class {
       const baseTemplate = template;
       const config = new ConnectionConfig({
         domain: options.domain,
+        apiUrl: options.apiUrl,
         apiKey: options.apiKey
       });
       const client = new ApiClient(config);
@@ -3429,6 +3462,7 @@ var TemplateBase = class {
   static async buildInBackground(template, options) {
     const config = new ConnectionConfig({
       domain: options.domain,
+      apiUrl: options.apiUrl,
       apiKey: options.apiKey
     });
     const client = new ApiClient(config);
@@ -3448,6 +3482,7 @@ var TemplateBase = class {
   static async getBuildStatus(data, options) {
     const config = new ConnectionConfig({
       domain: options == null ? void 0 : options.domain,
+      apiUrl: options == null ? void 0 : options.apiUrl,
       apiKey: options == null ? void 0 : options.apiKey
     });
     const client = new ApiClient(config);

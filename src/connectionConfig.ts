@@ -7,6 +7,50 @@ export const KEEPALIVE_PING_INTERVAL_SEC = 50 // 50 seconds
 
 export const KEEPALIVE_PING_HEADER = 'Keepalive-Ping-Interval'
 
+export const SANDBOX_DOMAIN_ENV_VAR = 'SANDBOX_DOMAIN'
+export const SANDBOX_API_URL_ENV_VAR = 'SANDBOX_API_URL'
+
+const LEGACY_SANDBOX_DOMAIN_ENV_VAR = 'REBYTE_SANDBOX_DOMAIN'
+const LEGACY_SANDBOX_API_URL_ENV_VAR = 'REBYTE_SANDBOX_API_URL'
+
+function nonEmpty(value: string | undefined) {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : undefined
+}
+
+function getEnvValue(...names: string[]) {
+  if (typeof process === 'undefined' || !process.env) {
+    return undefined
+  }
+
+  for (const name of names) {
+    const value = nonEmpty(process.env[name])
+    if (value) {
+      return value
+    }
+  }
+
+  return undefined
+}
+
+function getDomainFromApiUrl(apiUrl: string | undefined) {
+  if (!apiUrl) {
+    return undefined
+  }
+
+  try {
+    return new URL(apiUrl).host
+  } catch {
+    return undefined
+  }
+}
+
+function missingSandboxDomain(): never {
+  throw new Error(
+    `Sandbox API domain is required. Pass \`domain\` or \`apiUrl\`, or set ${SANDBOX_DOMAIN_ENV_VAR} or ${SANDBOX_API_URL_ENV_VAR}.`
+  )
+}
+
 /**
  * Connection options for requests to the API.
  */
@@ -22,7 +66,7 @@ export interface ConnectionOpts {
   /**
    * Domain to use for the API.
    *
-   * @default 'prod.rebyte.app'
+   * @default SANDBOX_DOMAIN or the host from SANDBOX_API_URL
    */
   domain?: string
   /**
@@ -82,7 +126,16 @@ export class ConnectionConfig {
   constructor(opts?: ConnectionOpts) {
     this.apiKey = opts?.apiKey
     this.debug = opts?.debug ?? false
-    this.domain = opts?.domain || 'prod.rebyte.app'
+
+    const apiUrl =
+      nonEmpty(opts?.apiUrl) ||
+      getEnvValue(SANDBOX_API_URL_ENV_VAR, LEGACY_SANDBOX_API_URL_ENV_VAR)
+    const domain =
+      nonEmpty(opts?.domain) ||
+      getEnvValue(SANDBOX_DOMAIN_ENV_VAR, LEGACY_SANDBOX_DOMAIN_ENV_VAR) ||
+      getDomainFromApiUrl(apiUrl)
+
+    this.domain = domain ?? (this.debug ? 'localhost' : missingSandboxDomain())
     this.accessToken = opts?.accessToken
     this.requestTimeoutMs = opts?.requestTimeoutMs ?? REQUEST_TIMEOUT_MS
     this.logger = opts?.logger
@@ -90,7 +143,7 @@ export class ConnectionConfig {
     this.headers['User-Agent'] = `rebyte-sandbox-js-sdk/${version}`
 
     this.apiUrl =
-      opts?.apiUrl ||
+      apiUrl ||
       (this.debug ? 'http://localhost:3000' : `https://${this.domain}`)
 
     this.sandboxUrl = opts?.sandboxUrl

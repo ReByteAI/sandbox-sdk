@@ -2117,7 +2117,7 @@ interface ConnectionOpts {
     /**
      * Domain to use for the API.
      *
-     * @default 'prod.rebyte.app'
+     * @default SANDBOX_DOMAIN or the host from SANDBOX_API_URL
      */
     domain?: string;
     /**
@@ -5405,14 +5405,20 @@ type SandboxNetworkOpts = {
      */
     egress?: SandboxNetworkEgressOpts;
     /**
-     * Specify if the sandbox URLs should be accessible only with authentication.
-     * @default true
+     * If true, the sandbox's user-app proxy URLs accept requests without
+     * authentication — knowing the URL is the credential. Useful for embed
+     * / iframe scenarios where the browser cannot attach an Authorization
+     * header on navigation or subresource loads. The envd RPC port (49983)
+     * always requires authentication regardless. Public sandboxes can be
+     * auto-resumed by any caller, so the owner pays the wake cost; access
+     * is logged for audit.
+     * @default false
      */
     allowPublicTraffic?: boolean;
     /** Specify host mask which will be used for all sandbox requests in the header.
      * You can use the ${PORT} variable that will be replaced with the actual port number of the service.
      *
-     * @default ${PORT}-sandboxid.rebyte.app
+     * @default ${PORT}-${sandboxID}.${domain}
      */
     maskRequestHost?: string;
     /**
@@ -5452,7 +5458,7 @@ type UdpEndpoint = {
 /**
  * Options for request to the Sandbox API.
  */
-interface SandboxApiOpts extends Partial<Pick<ConnectionOpts, 'apiKey' | 'headers' | 'debug' | 'domain' | 'requestTimeoutMs'>> {
+interface SandboxApiOpts extends Partial<Pick<ConnectionOpts, 'apiKey' | 'accessToken' | 'headers' | 'debug' | 'domain' | 'apiUrl' | 'sandboxUrl' | 'requestTimeoutMs'>> {
 }
 /**
  * Options for creating a new Sandbox.
@@ -5832,7 +5838,6 @@ declare class SandboxApi {
         sandboxDomain: string | undefined;
         envdVersion: string;
         envdAccessToken: string | undefined;
-        trafficAccessToken: string | undefined;
         udpEndpoint: UdpEndpoint | undefined;
     }>;
     /**
@@ -5848,7 +5853,6 @@ declare class SandboxApi {
         sandboxDomain: any;
         envdVersion: any;
         envdAccessToken: any;
-        trafficAccessToken: any;
         udpEndpoint: UdpEndpoint | undefined;
     }>;
     /**
@@ -5869,7 +5873,6 @@ declare class SandboxApi {
         sandboxDomain: string | undefined;
         envdVersion: string;
         envdAccessToken: string | undefined;
-        trafficAccessToken: string | undefined;
         udpEndpoint: UdpEndpoint | undefined;
     }>;
 }
@@ -6239,10 +6242,6 @@ declare class Sandbox extends SandboxApi {
      */
     readonly sandboxDomain: string;
     /**
-     * Traffic access token for accessing sandbox services with restricted public traffic.
-     */
-    readonly trafficAccessToken?: string;
-    /**
      * Allocated public UDP endpoint for media ingress (WebRTC/RTP).
      * Only set when the sandbox was created with `network.udpIngress.enabled: true`.
      * Updated on reconnect/resume if the backend allocates a new port.
@@ -6268,7 +6267,6 @@ declare class Sandbox extends SandboxApi {
         sandboxDomain?: string;
         envdVersion: string;
         envdAccessToken?: string;
-        trafficAccessToken?: string;
         udpEndpoint?: UdpEndpoint;
     });
     /**
@@ -6731,6 +6729,10 @@ type AuthOptions = {
      * Domain of the rebyte-sandbox API.
      */
     domain?: string;
+    /**
+     * Full URL of the rebyte-sandbox API.
+     */
+    apiUrl?: string;
 };
 /**
  * Options for building a template with authentication.

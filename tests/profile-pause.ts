@@ -1,8 +1,20 @@
 import { Sandbox } from '../src'
 
 async function main() {
+  const domain = process.env.SANDBOX_DOMAIN || process.env.REBYTE_SANDBOX_DOMAIN
+  const apiUrl =
+    process.env.SANDBOX_API_URL ||
+    process.env.REBYTE_SANDBOX_API_URL ||
+    process.env.API_URL ||
+    (domain ? `https://${domain}` : undefined)
+
+  if (!apiUrl) {
+    throw new Error('SANDBOX_API_URL, API_URL, or SANDBOX_DOMAIN is required')
+  }
+
   const config = {
-    apiUrl: 'https://dev.rebyte.app',
+    apiUrl,
+    domain: domain || new URL(apiUrl).host,
     apiKey: 'test-key',
     timeoutMs: 300_000,
   }
@@ -20,7 +32,9 @@ async function main() {
   // Fill some memory
   console.log('Filling 2GB of memory...')
   const t1 = Date.now()
-  await sandbox.commands.run('dd if=/dev/urandom of=/dev/shm/test bs=1M count=2000')
+  await sandbox.commands.run(
+    'dd if=/dev/urandom of=/dev/shm/test bs=1M count=2000'
+  )
   console.log(`Memory filled: 2GB (${Date.now() - t1}ms)`)
 
   // Pause - this is what we're profiling

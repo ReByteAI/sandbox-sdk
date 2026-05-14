@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { assert, afterAll, afterEach, beforeAll } from 'vitest'
+import { assert, afterAll, afterEach, beforeAll, vi } from 'vitest'
 
 import { http, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
@@ -10,6 +10,8 @@ import { randomUUID } from 'node:crypto'
 
 const __fileContent = fs.readFileSync(__filename, 'utf8') // read current file content
 const nonExistentPath = '/nonexistent/path'
+const testDomain = 'sandbox.example.test'
+const testApiUrl = `https://${testDomain}`
 
 // map template alias -> failed step index
 const failureMap: Record<string, number | undefined> = {
@@ -39,21 +41,18 @@ const failureMap: Record<string, number | undefined> = {
 }
 
 export const restHandlers = [
-  http.post('https://prod.rebyte.app/v3/templates', async ({ request }) => {
+  http.post(`${testApiUrl}/v3/templates`, async ({ request }) => {
     const { alias } = (await request.clone().json()) as { alias: string }
     return HttpResponse.json({
       buildID: randomUUID(),
       templateID: alias,
     })
   }),
-  http.post(
-    'https://prod.rebyte.app/v2/templates/:templateID/builds/:buildID',
-    () => {
-      return HttpResponse.json({})
-    }
-  ),
+  http.post(`${testApiUrl}/v2/templates/:templateID/builds/:buildID`, () => {
+    return HttpResponse.json({})
+  }),
   http.get<{ templateID: string; buildID: string }>(
-    'https://prod.rebyte.app/templates/:templateID/builds/:buildID/status',
+    `${testApiUrl}/templates/:templateID/builds/:buildID/status`,
     ({ params }) => {
       const { templateID } = params
       return HttpResponse.json({
@@ -70,9 +69,15 @@ export const restHandlers = [
 
 const server = setupServer(...restHandlers)
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
+beforeAll(() => {
+  vi.stubEnv('SANDBOX_DOMAIN', testDomain)
+  server.listen({ onUnhandledRequest: 'error' })
+})
 
-afterAll(() => server.close())
+afterAll(() => {
+  server.close()
+  vi.unstubAllEnvs()
+})
 
 afterEach(() => server.resetHandlers())
 
@@ -133,7 +138,9 @@ async function expectToThrowAndCheckTrace(
 }
 
 buildTemplateTest('traces on fromImage', async ({ buildTemplate }) => {
-  const template = Template().fromImage('prod.rebyte.app/this-image-does-not-exist')
+  const template = Template().fromImage(
+    'registry.example.com/this-image-does-not-exist'
+  )
   await expectToThrowAndCheckTrace(async () => {
     await buildTemplate(template, { alias: 'fromImage', skipCache: true })
   }, 'fromImage')

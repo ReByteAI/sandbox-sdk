@@ -124,6 +124,7 @@ export class TemplateBase
 
       const config = new ConnectionConfig({
         domain: options.domain,
+        apiUrl: options.apiUrl,
         apiKey: options.apiKey,
       })
       const client = new ApiClient(config)
@@ -170,6 +171,7 @@ export class TemplateBase
   ): Promise<BuildInfo> {
     const config = new ConnectionConfig({
       domain: options.domain,
+      apiUrl: options.apiUrl,
       apiKey: options.apiKey,
     })
     const client = new ApiClient(config)
@@ -194,6 +196,7 @@ export class TemplateBase
   ): Promise<GetBuildStatusResponse> {
     const config = new ConnectionConfig({
       domain: options?.domain,
+      apiUrl: options?.apiUrl,
       apiKey: options?.apiKey,
     })
     const client = new ApiClient(config)
