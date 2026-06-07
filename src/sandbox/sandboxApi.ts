@@ -97,28 +97,26 @@ import { timeoutToSeconds } from '../utils'
 import type { McpServer as BaseMcpServer } from './mcp'
 import { mintSandboxToken } from './sandboxToken'
 
-// apiKey format is `msb_<teamId>_<hexsecret>`; the secret is a lowercase hex
-// suffix, so strip the `msb_` prefix and the trailing `_<hex>` to recover the
-// team/org id used as the JWT's team_id claim.
-function teamIdFromApiKey(apiKey: string): string {
-  return apiKey.replace(/^msb_/, '').replace(/_[0-9a-f]+$/, '')
-}
-
 // The gateway authenticates VM-infra requests via `X-Access-Token` carrying a
 // sandbox-scoped JWT (HMAC of the team API key) — the gateway-issued
 // `envdAccessToken` from the create/connect response is not a usable gateway
 // credential on its own. Mint the JWT here so envd/proxy calls authenticate the
-// same way relay's gRPC transport does. Fall back to any gateway-issued token
-// when there's no API key to mint with.
+// same way relay's gRPC transport does.
+//
+// `teamId` is the org id that owns the API key; the gateway uses it to look up
+// the key hashes that verify the JWT signature. It is supplied explicitly via
+// `opts.teamId` (the caller already knows its org id) — never parsed from the
+// key. When no apiKey/teamId is available to mint with, fall back to any
+// gateway-issued token.
 async function deriveEnvdAccessToken(
   config: ConnectionConfig,
   sandboxId: string,
   fallback?: string
 ): Promise<string | undefined> {
-  if (!config.apiKey) return fallback
+  if (!config.apiKey || !config.teamId) return fallback
   return mintSandboxToken({
     apiKey: config.apiKey,
-    teamId: teamIdFromApiKey(config.apiKey),
+    teamId: config.teamId,
     sandboxId,
     expSeconds: 24 * 60 * 60,
   })

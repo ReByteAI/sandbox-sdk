@@ -2119,6 +2119,13 @@ interface ConnectionOpts {
      */
     accessToken?: string;
     /**
+     * Team/org id that owns {@link apiKey}. Used as the `team_id` claim when
+     * minting the sandbox-scoped JWT sent as `X-Access-Token` — the gateway
+     * looks up the team's key hashes by this id to verify the signature.
+     * Pass it explicitly (it is the org id); it is not derived from the key.
+     */
+    teamId?: string;
+    /**
      * Domain to use for the API.
      *
      * @default E2B_DOMAIN // environment variable or `prod.rebyte.app`
@@ -2170,6 +2177,7 @@ declare class ConnectionConfig {
     readonly requestTimeoutMs: number;
     readonly apiKey?: string;
     readonly accessToken?: string;
+    readonly teamId?: string;
     readonly headers?: Record<string, string>;
     constructor(opts?: ConnectionOpts);
     private static get domain();

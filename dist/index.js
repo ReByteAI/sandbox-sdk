@@ -425,6 +425,7 @@ var _ConnectionConfig = class _ConnectionConfig {
   constructor(opts) {
     var _a3;
     this.apiKey = (opts == null ? void 0 : opts.apiKey) || _ConnectionConfig.apiKey;
+    this.teamId = opts == null ? void 0 : opts.teamId;
     this.debug = (opts == null ? void 0 : opts.debug) || _ConnectionConfig.debug;
     this.domain = (opts == null ? void 0 : opts.domain) || _ConnectionConfig.domain;
     this.accessToken = (opts == null ? void 0 : opts.accessToken) || _ConnectionConfig.accessToken;
@@ -1762,14 +1763,11 @@ async function mintSandboxToken(opts) {
 }
 
 // src/sandbox/sandboxApi.ts
-function teamIdFromApiKey(apiKey) {
-  return apiKey.replace(/^msb_/, "").replace(/_[0-9a-f]+$/, "");
-}
 async function deriveEnvdAccessToken(config, sandboxId, fallback) {
-  if (!config.apiKey) return fallback;
+  if (!config.apiKey || !config.teamId) return fallback;
   return mintSandboxToken({
     apiKey: config.apiKey,
-    teamId: teamIdFromApiKey(config.apiKey),
+    teamId: config.teamId,
     sandboxId,
     expSeconds: 24 * 60 * 60
   });
