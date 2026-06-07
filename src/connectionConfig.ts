@@ -1,5 +1,5 @@
 import { Logger } from './logs'
-import { version } from './api/metadata'
+import { getEnvVar, version } from './api/metadata'
 
 export const REQUEST_TIMEOUT_MS = 120_000 // 120 seconds (pause/resume needs ~60s for snapshot + GCS upload)
 export const DEFAULT_SANDBOX_TIMEOUT_MS = 300_000 // 300 seconds
@@ -7,84 +7,44 @@ export const KEEPALIVE_PING_INTERVAL_SEC = 50 // 50 seconds
 
 export const KEEPALIVE_PING_HEADER = 'Keepalive-Ping-Interval'
 
-export const SANDBOX_DOMAIN_ENV_VAR = 'SANDBOX_DOMAIN'
-export const SANDBOX_API_URL_ENV_VAR = 'SANDBOX_API_URL'
-
-const LEGACY_SANDBOX_DOMAIN_ENV_VAR = 'REBYTE_SANDBOX_DOMAIN'
-const LEGACY_SANDBOX_API_URL_ENV_VAR = 'REBYTE_SANDBOX_API_URL'
-
-function nonEmpty(value: string | undefined) {
-  const trimmed = value?.trim()
-  return trimmed ? trimmed : undefined
-}
-
-function getEnvValue(...names: string[]) {
-  if (typeof process === 'undefined' || !process.env) {
-    return undefined
-  }
-
-  for (const name of names) {
-    const value = nonEmpty(process.env[name])
-    if (value) {
-      return value
-    }
-  }
-
-  return undefined
-}
-
-function getDomainFromApiUrl(apiUrl: string | undefined) {
-  if (!apiUrl) {
-    return undefined
-  }
-
-  try {
-    return new URL(apiUrl).host
-  } catch {
-    return undefined
-  }
-}
-
-function missingSandboxDomain(): never {
-  throw new Error(
-    `Sandbox API domain is required. Pass \`domain\` or \`apiUrl\`, or set ${SANDBOX_DOMAIN_ENV_VAR} or ${SANDBOX_API_URL_ENV_VAR}.`
-  )
-}
-
 /**
  * Connection options for requests to the API.
  */
 export interface ConnectionOpts {
   /**
-   * rebyte-sandbox API key to use for authentication.
+   * E2B API key to use for authentication.
+   *
+   * @default E2B_API_KEY // environment variable
    */
   apiKey?: string
   /**
-   * Access token to use for authentication.
+   * E2B access token to use for authentication.
+   *
+   * @default E2B_ACCESS_TOKEN // environment variable
    */
   accessToken?: string
   /**
    * Domain to use for the API.
    *
-   * @default SANDBOX_DOMAIN or the host from SANDBOX_API_URL
+   * @default E2B_DOMAIN // environment variable or `prod.rebyte.app`
    */
   domain?: string
   /**
    * API Url to use for the API.
    * @internal
-   * @default `https://${domain}`
+   * @default E2B_API_URL // environment variable or `https://${domain}`
    */
   apiUrl?: string
   /**
    * Sandbox Url to use for the API.
    * @internal
-   * @default `https://${port}-${sandboxID}.${domain}`
+   * @default E2B_SANDBOX_URL // environment variable or `https://${port}-${sandboxID}.${domain}`
    */
   sandboxUrl?: string
   /**
    * If true the SDK starts in the debug mode and connects to the local envd API server.
    * @internal
-   * @default false
+   * @default E2B_DEBUG // environment variable or `false`
    */
   debug?: boolean
   /**
@@ -124,29 +84,45 @@ export class ConnectionConfig {
   readonly headers?: Record<string, string>
 
   constructor(opts?: ConnectionOpts) {
-    this.apiKey = opts?.apiKey
-    this.debug = opts?.debug ?? false
-
-    const apiUrl =
-      nonEmpty(opts?.apiUrl) ||
-      getEnvValue(SANDBOX_API_URL_ENV_VAR, LEGACY_SANDBOX_API_URL_ENV_VAR)
-    const domain =
-      nonEmpty(opts?.domain) ||
-      getEnvValue(SANDBOX_DOMAIN_ENV_VAR, LEGACY_SANDBOX_DOMAIN_ENV_VAR) ||
-      getDomainFromApiUrl(apiUrl)
-
-    this.domain = domain ?? (this.debug ? 'localhost' : missingSandboxDomain())
-    this.accessToken = opts?.accessToken
+    this.apiKey = opts?.apiKey || ConnectionConfig.apiKey
+    this.debug = opts?.debug || ConnectionConfig.debug
+    this.domain = opts?.domain || ConnectionConfig.domain
+    this.accessToken = opts?.accessToken || ConnectionConfig.accessToken
     this.requestTimeoutMs = opts?.requestTimeoutMs ?? REQUEST_TIMEOUT_MS
     this.logger = opts?.logger
     this.headers = opts?.headers || {}
-    this.headers['User-Agent'] = `rebyte-sandbox-js-sdk/${version}`
+    this.headers['User-Agent'] = `e2b-js-sdk/${version}`
 
     this.apiUrl =
-      apiUrl ||
+      opts?.apiUrl ||
+      ConnectionConfig.apiUrl ||
       (this.debug ? 'http://localhost:3000' : `https://${this.domain}`)
 
-    this.sandboxUrl = opts?.sandboxUrl
+    this.sandboxUrl = opts?.sandboxUrl || ConnectionConfig.sandboxUrl
+  }
+
+  private static get domain() {
+    return getEnvVar('E2B_DOMAIN') || 'prod.rebyte.app'
+  }
+
+  private static get apiUrl() {
+    return getEnvVar('E2B_API_URL')
+  }
+
+  private static get sandboxUrl() {
+    return getEnvVar('E2B_SANDBOX_URL')
+  }
+
+  private static get debug() {
+    return (getEnvVar('E2B_DEBUG') || 'false').toLowerCase() === 'true'
+  }
+
+  private static get apiKey() {
+    return getEnvVar('E2B_API_KEY')
+  }
+
+  private static get accessToken() {
+    return getEnvVar('E2B_ACCESS_TOKEN')
   }
 
   getSignal(requestTimeoutMs?: number) {

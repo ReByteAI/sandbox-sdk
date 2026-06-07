@@ -193,7 +193,7 @@ class DefaultBuildLogger {
  *
  * @example
  * ```ts
- * import { Template, defaultBuildLogger } from 'rebyte-sandbox'
+ * import { Template, defaultBuildLogger } from 'e2b'
  *
  * const template = Template().fromPythonImage()
  *

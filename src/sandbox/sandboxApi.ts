@@ -95,6 +95,34 @@ import { compareVersions } from 'compare-versions'
 import { NotFoundError, TemplateError } from '../errors'
 import { timeoutToSeconds } from '../utils'
 import type { McpServer as BaseMcpServer } from './mcp'
+import { mintSandboxToken } from './sandboxToken'
+
+// apiKey format is `msb_<teamId>_<hexsecret>`; the secret is a lowercase hex
+// suffix, so strip the `msb_` prefix and the trailing `_<hex>` to recover the
+// team/org id used as the JWT's team_id claim.
+function teamIdFromApiKey(apiKey: string): string {
+  return apiKey.replace(/^msb_/, '').replace(/_[0-9a-f]+$/, '')
+}
+
+// The gateway authenticates VM-infra requests via `X-Access-Token` carrying a
+// sandbox-scoped JWT (HMAC of the team API key) — the gateway-issued
+// `envdAccessToken` from the create/connect response is not a usable gateway
+// credential on its own. Mint the JWT here so envd/proxy calls authenticate the
+// same way relay's gRPC transport does. Fall back to any gateway-issued token
+// when there's no API key to mint with.
+async function deriveEnvdAccessToken(
+  config: ConnectionConfig,
+  sandboxId: string,
+  fallback?: string
+): Promise<string | undefined> {
+  if (!config.apiKey) return fallback
+  return mintSandboxToken({
+    apiKey: config.apiKey,
+    teamId: teamIdFromApiKey(config.apiKey),
+    sandboxId,
+    expSeconds: 24 * 60 * 60,
+  })
+}
 
 /**
  * Extended MCP server configuration that includes base servers
@@ -120,7 +148,7 @@ export type GitHubMcpServer = {
 }
 
 /**
- * Egress (outbound) network configuration.
+ * Egress (outbound) network configuration (matches E2B exactly).
  *
  * Priority order for egress checking:
  *   1. allowedDomains → if hostname matches, ALLOW (bypass all)
@@ -175,21 +203,15 @@ export type SandboxNetworkOpts = {
   egress?: SandboxNetworkEgressOpts
 
   /**
-   * If true, the sandbox's user-app proxy URLs accept requests without
-   * authentication — knowing the URL is the credential. Useful for embed
-   * / iframe scenarios where the browser cannot attach an Authorization
-   * header on navigation or subresource loads. The envd RPC port (49983)
-   * always requires authentication regardless. Public sandboxes can be
-   * auto-resumed by any caller, so the owner pays the wake cost; access
-   * is logged for audit.
-   * @default false
+   * Specify if the sandbox URLs should be accessible only with authentication.
+   * @default true
    */
   allowPublicTraffic?: boolean
 
   /** Specify host mask which will be used for all sandbox requests in the header.
    * You can use the ${PORT} variable that will be replaced with the actual port number of the service.
    *
-   * @default ${PORT}-${sandboxID}.${domain}
+   * @default ${PORT}-sandboxid.e2b.app
    */
   maskRequestHost?: string
 
@@ -237,14 +259,7 @@ export interface SandboxApiOpts
   extends Partial<
     Pick<
       ConnectionOpts,
-      | 'apiKey'
-      | 'accessToken'
-      | 'headers'
-      | 'debug'
-      | 'domain'
-      | 'apiUrl'
-      | 'sandboxUrl'
-      | 'requestTimeoutMs'
+      'apiKey' | 'headers' | 'debug' | 'domain' | 'requestTimeoutMs'
     >
   > {}
 
@@ -503,16 +518,14 @@ export interface SandboxInfo {
   webhookUrl?: string
 
   /**
-   * Build ID this sandbox started from (snapshot identifier).
-   * `undefined` for fresh creates (no snapshot).
+   * Build ID this sandbox started from (template ID for fresh creates, snapshot build ID for resumes).
    */
-  buildId?: string
+  buildId: string
 
   /**
-   * Whether this sandbox was cold-started (rootfs only) vs full restored (local memfile).
-   * `undefined` for fresh creates or paused sandboxes not currently running.
+   * Whether this sandbox was cold-started (fresh boot from rootfs) or full restored (from local memfile snapshot).
    */
-  coldStart?: boolean
+  coldStart: boolean
 }
 
 /**
@@ -743,8 +756,8 @@ export class SandboxApi {
       memoryMB: res.data.memoryMB,
       sandboxDomain: res.data.domain || undefined,
       webhookUrl: (res.data as any).webhookUrl || undefined,
-      buildId: (res.data as any).buildID || undefined,
-      coldStart: (res.data as any).coldStart ?? undefined,
+      buildId: (res.data as any).buildID,
+      coldStart: (res.data as any).coldStart,
     }
   }
 
@@ -895,7 +908,8 @@ export class SandboxApi {
     if (compareVersions(res.data!.envdVersion, '0.1.0') < 0) {
       await this.kill(res.data!.sandboxID, opts)
       throw new TemplateError(
-        'You need to update the template to use the new SDK.'
+        'You need to update the template to use the new SDK. ' +
+          'You can do this by running `e2b template build` in the directory with the template.'
       )
     }
 
@@ -903,72 +917,12 @@ export class SandboxApi {
       sandboxId: res.data!.sandboxID,
       sandboxDomain: res.data!.domain || undefined,
       envdVersion: res.data!.envdVersion,
-      envdAccessToken: res.data!.envdAccessToken,
-      udpEndpoint: (res.data as any)?.udpEndpoint as UdpEndpoint | undefined,
-    }
-  }
-
-  /**
-   * Fork a paused/hibernated sandbox into a new sandbox that cold-boots from
-   * the source's latest snapshot. Source must already be paused or hibernated.
-   * The new sandbox inherits the source's namespace and base template; vCPU
-   * and memory default to the source's values unless overridden in opts.
-   *
-   * Cross-namespace forks are rejected (404).
-   */
-  protected static async forkSandbox(
-    sourceSandboxId: string,
-    timeoutMs: number,
-    opts?: SandboxOpts
-  ) {
-    const config = new ConnectionConfig(opts)
-    const client = new ApiClient(config)
-
-    const { udpIngress, ...networkRest } = opts?.network ?? {} as SandboxNetworkOpts
-    const networkBody = Object.keys(networkRest).length > 0 ? networkRest : undefined
-
-    const res = await client.api.POST('/sandboxes/{sandboxID}/fork' as any, {
-      params: {
-        path: {
-          sandboxID: sourceSandboxId,
-        },
-      },
-      body: {
-        autoPauseMode: opts?.autoPauseMode ?? 'pause',
-        sandboxID: opts?.sandboxId,
-        metadata: opts?.metadata,
-        envVars: opts?.envs,
-        timeout: timeoutToSeconds(timeoutMs),
-        network: networkBody,
-        udpIngress,
-        webhookUrl: opts?.webhookUrl,
-      } as any,
-      signal: config.getSignal(opts?.requestTimeoutMs),
-    })
-
-    if (res.error?.code === 404) {
-      throw new NotFoundError(
-        `Source sandbox ${sourceSandboxId} not found or has no snapshot — pause or hibernate it before forking`
-      )
-    }
-
-    const err = handleApiError(res)
-    if (err) {
-      throw err
-    }
-
-    if (compareVersions(res.data!.envdVersion, '0.1.0') < 0) {
-      await this.kill(res.data!.sandboxID, opts)
-      throw new TemplateError(
-        'You need to update the template to use the new SDK.'
-      )
-    }
-
-    return {
-      sandboxId: res.data!.sandboxID,
-      sandboxDomain: res.data!.domain || undefined,
-      envdVersion: res.data!.envdVersion,
-      envdAccessToken: res.data!.envdAccessToken,
+      envdAccessToken: await deriveEnvdAccessToken(
+        config,
+        res.data!.sandboxID,
+        res.data!.envdAccessToken
+      ),
+      trafficAccessToken: res.data!.trafficAccessToken || undefined,
       udpEndpoint: (res.data as any)?.udpEndpoint as UdpEndpoint | undefined,
     }
   }
@@ -1024,7 +978,12 @@ export class SandboxApi {
       sandboxId: res.data!.sandboxID,
       sandboxDomain: res.data!.domain || undefined,
       envdVersion: res.data!.envdVersion,
-      envdAccessToken: res.data!.envdAccessToken,
+      envdAccessToken: await deriveEnvdAccessToken(
+        config,
+        res.data!.sandboxID,
+        res.data!.envdAccessToken
+      ),
+      trafficAccessToken: res.data!.trafficAccessToken || undefined,
       udpEndpoint: (res.data as any)?.udpEndpoint as UdpEndpoint | undefined,
     }
   }
@@ -1135,6 +1094,8 @@ export class SandboxPaginator {
         cpuCount: sandbox.cpuCount,
         memoryMB: sandbox.memoryMB,
         envdVersion: sandbox.envdVersion,
+        buildId: (sandbox as any).buildID ?? '',
+        coldStart: (sandbox as any).coldStart ?? true,
       })
     )
   }

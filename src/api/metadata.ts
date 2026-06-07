@@ -10,7 +10,20 @@ export const defaultHeaders = {
   lang: 'js',
   lang_version: runtimeVersion,
   package_version: version,
-  publisher: 'rebyte',
+  publisher: 'e2b',
   sdk_runtime: runtime,
   system: platform.os?.family || 'unknown',
+}
+
+export function getEnvVar(name: string) {
+  if (runtime === 'deno') {
+    // @ts-ignore
+    return Deno.env.get(name)
+  }
+
+  if (typeof process === 'undefined') {
+    return ''
+  }
+
+  return process.env[name]
 }

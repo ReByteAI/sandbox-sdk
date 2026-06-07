@@ -61,6 +61,7 @@ export interface McpServer {
   dreamfactory?: DreamFactoryMCPServer
   duckduckgo?: DuckDuckGo
   dynatrace?: DynatraceMCPServer
+  e2b?: E2B
   edubase?: EduBase
   effect?: EffectMCP
   elasticsearch?: Elasticsearch
@@ -638,6 +639,12 @@ export interface DynatraceMCPServer {
   oauthClientId: string
   oauthClientSecret: string
   url: string
+}
+/**
+ * Giving Claude ability to run code with E2B via MCP (Model Context Protocol).
+ */
+export interface E2B {
+  apiKey: string
 }
 /**
  * The EduBase MCP server enables Claude and other LLMs to interact with EduBase's comprehensive e-learning platform through the Model Context Protocol (MCP).

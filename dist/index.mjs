@@ -87,10 +87,19 @@ var defaultHeaders = {
   lang: "js",
   lang_version: runtimeVersion,
   package_version: version,
-  publisher: "rebyte",
+  publisher: "e2b",
   sdk_runtime: runtime,
   system: ((_a = platform2.os) == null ? void 0 : _a.family) || "unknown"
 };
+function getEnvVar(name) {
+  if (runtime === "deno") {
+    return Deno.env.get(name);
+  }
+  if (typeof process === "undefined") {
+    return "";
+  }
+  return process.env[name];
+}
 
 // src/errors.ts
 var ErrorCode = {
@@ -276,12 +285,12 @@ var ApiClient = class {
   constructor(config, opts = { requireAccessToken: false, requireApiKey: false }) {
     if ((opts == null ? void 0 : opts.requireApiKey) && !config.apiKey) {
       throw new AuthenticationError(
-        "API key is required. Pass it via Sandbox.create({ apiKey: '...' })."
+        "API key is required, please visit the Team tab at https://e2b.dev/dashboard to get your API key. You can either set the environment variable `E2B_API_KEY` or you can pass it directly to the sandbox like Sandbox.create({ apiKey: 'e2b_...' })"
       );
     }
     if ((opts == null ? void 0 : opts.requireAccessToken) && !config.accessToken) {
       throw new AuthenticationError(
-        "Access token is required. Pass `accessToken` in options."
+        "Access token is required, please visit the Personal tab at https://e2b.dev/dashboard to get your access token. You can set the environment variable `E2B_ACCESS_TOKEN` or pass the `accessToken` in options."
       );
     }
     this.api = createClient({
@@ -308,56 +317,37 @@ var REQUEST_TIMEOUT_MS = 12e4;
 var DEFAULT_SANDBOX_TIMEOUT_MS = 3e5;
 var KEEPALIVE_PING_INTERVAL_SEC = 50;
 var KEEPALIVE_PING_HEADER = "Keepalive-Ping-Interval";
-var SANDBOX_DOMAIN_ENV_VAR = "SANDBOX_DOMAIN";
-var SANDBOX_API_URL_ENV_VAR = "SANDBOX_API_URL";
-var LEGACY_SANDBOX_DOMAIN_ENV_VAR = "REBYTE_SANDBOX_DOMAIN";
-var LEGACY_SANDBOX_API_URL_ENV_VAR = "REBYTE_SANDBOX_API_URL";
-function nonEmpty(value) {
-  const trimmed = value == null ? void 0 : value.trim();
-  return trimmed ? trimmed : void 0;
-}
-function getEnvValue(...names) {
-  if (typeof process === "undefined" || !process.env) {
-    return void 0;
-  }
-  for (const name of names) {
-    const value = nonEmpty(process.env[name]);
-    if (value) {
-      return value;
-    }
-  }
-  return void 0;
-}
-function getDomainFromApiUrl(apiUrl) {
-  if (!apiUrl) {
-    return void 0;
-  }
-  try {
-    return new URL(apiUrl).host;
-  } catch (e) {
-    return void 0;
-  }
-}
-function missingSandboxDomain() {
-  throw new Error(
-    `Sandbox API domain is required. Pass \`domain\` or \`apiUrl\`, or set ${SANDBOX_DOMAIN_ENV_VAR} or ${SANDBOX_API_URL_ENV_VAR}.`
-  );
-}
-var ConnectionConfig = class {
+var _ConnectionConfig = class _ConnectionConfig {
   constructor(opts) {
-    var _a3, _b;
-    this.apiKey = opts == null ? void 0 : opts.apiKey;
-    this.debug = (_a3 = opts == null ? void 0 : opts.debug) != null ? _a3 : false;
-    const apiUrl = nonEmpty(opts == null ? void 0 : opts.apiUrl) || getEnvValue(SANDBOX_API_URL_ENV_VAR, LEGACY_SANDBOX_API_URL_ENV_VAR);
-    const domain = nonEmpty(opts == null ? void 0 : opts.domain) || getEnvValue(SANDBOX_DOMAIN_ENV_VAR, LEGACY_SANDBOX_DOMAIN_ENV_VAR) || getDomainFromApiUrl(apiUrl);
-    this.domain = domain != null ? domain : this.debug ? "localhost" : missingSandboxDomain();
-    this.accessToken = opts == null ? void 0 : opts.accessToken;
-    this.requestTimeoutMs = (_b = opts == null ? void 0 : opts.requestTimeoutMs) != null ? _b : REQUEST_TIMEOUT_MS;
+    var _a3;
+    this.apiKey = (opts == null ? void 0 : opts.apiKey) || _ConnectionConfig.apiKey;
+    this.debug = (opts == null ? void 0 : opts.debug) || _ConnectionConfig.debug;
+    this.domain = (opts == null ? void 0 : opts.domain) || _ConnectionConfig.domain;
+    this.accessToken = (opts == null ? void 0 : opts.accessToken) || _ConnectionConfig.accessToken;
+    this.requestTimeoutMs = (_a3 = opts == null ? void 0 : opts.requestTimeoutMs) != null ? _a3 : REQUEST_TIMEOUT_MS;
     this.logger = opts == null ? void 0 : opts.logger;
     this.headers = (opts == null ? void 0 : opts.headers) || {};
-    this.headers["User-Agent"] = `rebyte-sandbox-js-sdk/${version}`;
-    this.apiUrl = apiUrl || (this.debug ? "http://localhost:3000" : `https://${this.domain}`);
-    this.sandboxUrl = opts == null ? void 0 : opts.sandboxUrl;
+    this.headers["User-Agent"] = `e2b-js-sdk/${version}`;
+    this.apiUrl = (opts == null ? void 0 : opts.apiUrl) || _ConnectionConfig.apiUrl || (this.debug ? "http://localhost:3000" : `https://${this.domain}`);
+    this.sandboxUrl = (opts == null ? void 0 : opts.sandboxUrl) || _ConnectionConfig.sandboxUrl;
+  }
+  static get domain() {
+    return getEnvVar("E2B_DOMAIN") || "prod.rebyte.app";
+  }
+  static get apiUrl() {
+    return getEnvVar("E2B_API_URL");
+  }
+  static get sandboxUrl() {
+    return getEnvVar("E2B_SANDBOX_URL");
+  }
+  static get debug() {
+    return (getEnvVar("E2B_DEBUG") || "false").toLowerCase() === "true";
+  }
+  static get apiKey() {
+    return getEnvVar("E2B_API_KEY");
+  }
+  static get accessToken() {
+    return getEnvVar("E2B_ACCESS_TOKEN");
   }
   getSignal(requestTimeoutMs) {
     const timeout = requestTimeoutMs != null ? requestTimeoutMs : this.requestTimeoutMs;
@@ -376,7 +366,8 @@ var ConnectionConfig = class {
     return `${port}-${sandboxId}.${sandboxDomain != null ? sandboxDomain : this.domain}`;
   }
 };
-ConnectionConfig.envdPort = 49983;
+_ConnectionConfig.envdPort = 49983;
+var ConnectionConfig = _ConnectionConfig;
 var defaultUsername = "user";
 
 // src/sandbox/signature.ts
@@ -408,59 +399,6 @@ async function getSignature({
     signature,
     expiration: signatureExpiration
   };
-}
-
-// src/sandbox/sandboxToken.ts
-function utf8(s) {
-  return new TextEncoder().encode(s);
-}
-function base64url(buf) {
-  let str = "";
-  for (let i = 0; i < buf.length; i++) str += String.fromCharCode(buf[i]);
-  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
-}
-function bytesToHex(buf) {
-  let out = "";
-  for (let i = 0; i < buf.length; i++) {
-    out += buf[i].toString(16).padStart(2, "0");
-  }
-  return out;
-}
-async function mintSandboxToken(opts) {
-  var _a3, _b;
-  if (!opts.apiKey) throw new Error("mintSandboxToken: apiKey is required");
-  if (!opts.teamId) throw new Error("mintSandboxToken: teamId is required");
-  if (!opts.sandboxId)
-    throw new Error("mintSandboxToken: sandboxId is required");
-  const now = Math.floor(Date.now() / 1e3);
-  const header = { alg: "HS256", typ: "JWT" };
-  const payload = {
-    team_id: opts.teamId,
-    sandbox_id: opts.sandboxId,
-    exp: now + ((_a3 = opts.expSeconds) != null ? _a3 : 3600),
-    iat: now
-  };
-  const signingInput = `${base64url(utf8(JSON.stringify(header)))}.${base64url(
-    utf8(JSON.stringify(payload))
-  )}`;
-  const subtle = (_b = globalThis.crypto) == null ? void 0 : _b.subtle;
-  if (subtle) {
-    const apiKeyHashBuf = await subtle.digest("SHA-256", utf8(opts.apiKey));
-    const secret = utf8(bytesToHex(new Uint8Array(apiKeyHashBuf)));
-    const key = await subtle.importKey(
-      "raw",
-      secret,
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"]
-    );
-    const sigBuf = await subtle.sign("HMAC", key, utf8(signingInput));
-    return `${signingInput}.${base64url(new Uint8Array(sigBuf))}`;
-  }
-  const { createHash, createHmac } = __require("crypto");
-  const apiKeyHash = createHash("sha256").update(opts.apiKey).digest("hex");
-  const sig = createHmac("sha256", apiKeyHash).update(signingInput).digest();
-  return `${signingInput}.${base64url(new Uint8Array(sig))}`;
 }
 
 // src/sandbox/filesystem/index.ts
@@ -1059,7 +997,7 @@ var Filesystem2 = class {
     var _a3, _b, _c;
     if ((opts == null ? void 0 : opts.recursive) && this.envdApi.version && compareVersions2(this.envdApi.version, ENVD_VERSION_RECURSIVE_WATCH) < 0) {
       throw new TemplateError(
-        "You need to update the template to use recursive watching."
+        "You need to update the template to use recursive watching. You can do this by running `e2b template build` in the directory with the template."
       );
     }
     const requestTimeoutMs = (_a3 = opts == null ? void 0 : opts.requestTimeoutMs) != null ? _a3 : this.connectionConfig.requestTimeoutMs;
@@ -1687,6 +1625,73 @@ var Commands = class {
 
 // src/sandbox/sandboxApi.ts
 import { compareVersions as compareVersions4 } from "compare-versions";
+
+// src/sandbox/sandboxToken.ts
+function utf8(s) {
+  return new TextEncoder().encode(s);
+}
+function base64url(buf) {
+  let str = "";
+  for (let i = 0; i < buf.length; i++) str += String.fromCharCode(buf[i]);
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+function bytesToHex(buf) {
+  let out = "";
+  for (let i = 0; i < buf.length; i++) {
+    out += buf[i].toString(16).padStart(2, "0");
+  }
+  return out;
+}
+async function mintSandboxToken(opts) {
+  var _a3, _b;
+  if (!opts.apiKey) throw new Error("mintSandboxToken: apiKey is required");
+  if (!opts.teamId) throw new Error("mintSandboxToken: teamId is required");
+  if (!opts.sandboxId)
+    throw new Error("mintSandboxToken: sandboxId is required");
+  const now = Math.floor(Date.now() / 1e3);
+  const header = { alg: "HS256", typ: "JWT" };
+  const payload = {
+    team_id: opts.teamId,
+    sandbox_id: opts.sandboxId,
+    exp: now + ((_a3 = opts.expSeconds) != null ? _a3 : 3600),
+    iat: now
+  };
+  const signingInput = `${base64url(utf8(JSON.stringify(header)))}.${base64url(
+    utf8(JSON.stringify(payload))
+  )}`;
+  const subtle = (_b = globalThis.crypto) == null ? void 0 : _b.subtle;
+  if (subtle) {
+    const apiKeyHashBuf = await subtle.digest("SHA-256", utf8(opts.apiKey));
+    const secret = utf8(bytesToHex(new Uint8Array(apiKeyHashBuf)));
+    const key = await subtle.importKey(
+      "raw",
+      secret,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const sigBuf = await subtle.sign("HMAC", key, utf8(signingInput));
+    return `${signingInput}.${base64url(new Uint8Array(sigBuf))}`;
+  }
+  const { createHash, createHmac } = __require("crypto");
+  const apiKeyHash = createHash("sha256").update(opts.apiKey).digest("hex");
+  const sig = createHmac("sha256", apiKeyHash).update(signingInput).digest();
+  return `${signingInput}.${base64url(new Uint8Array(sig))}`;
+}
+
+// src/sandbox/sandboxApi.ts
+function teamIdFromApiKey(apiKey) {
+  return apiKey.replace(/^msb_/, "").replace(/_[0-9a-f]+$/, "");
+}
+async function deriveEnvdAccessToken(config, sandboxId, fallback) {
+  if (!config.apiKey) return fallback;
+  return mintSandboxToken({
+    apiKey: config.apiKey,
+    teamId: teamIdFromApiKey(config.apiKey),
+    sandboxId,
+    expSeconds: 24 * 60 * 60
+  });
+}
 var SandboxApi = class {
   constructor() {
   }
@@ -1809,7 +1814,7 @@ var SandboxApi = class {
     }
   }
   static async getFullInfo(sandboxId, opts) {
-    var _a3, _b, _c;
+    var _a3, _b;
     const config = new ConnectionConfig(opts);
     const client = new ApiClient(config);
     const res = await client.api.GET("/sandboxes/{sandboxID}", {
@@ -1844,8 +1849,8 @@ var SandboxApi = class {
       memoryMB: res.data.memoryMB,
       sandboxDomain: res.data.domain || void 0,
       webhookUrl: res.data.webhookUrl || void 0,
-      buildId: res.data.buildID || void 0,
-      coldStart: (_c = res.data.coldStart) != null ? _c : void 0
+      buildId: res.data.buildID,
+      coldStart: res.data.coldStart
     });
   }
   /**
@@ -1968,70 +1973,20 @@ var SandboxApi = class {
     if (compareVersions4(res.data.envdVersion, "0.1.0") < 0) {
       await this.kill(res.data.sandboxID, opts);
       throw new TemplateError(
-        "You need to update the template to use the new SDK."
+        "You need to update the template to use the new SDK. You can do this by running `e2b template build` in the directory with the template."
       );
     }
     return {
       sandboxId: res.data.sandboxID,
       sandboxDomain: res.data.domain || void 0,
       envdVersion: res.data.envdVersion,
-      envdAccessToken: res.data.envdAccessToken,
+      envdAccessToken: await deriveEnvdAccessToken(
+        config,
+        res.data.sandboxID,
+        res.data.envdAccessToken
+      ),
+      trafficAccessToken: res.data.trafficAccessToken || void 0,
       udpEndpoint: (_f = res.data) == null ? void 0 : _f.udpEndpoint
-    };
-  }
-  /**
-   * Fork a paused/hibernated sandbox into a new sandbox that cold-boots from
-   * the source's latest snapshot. Source must already be paused or hibernated.
-   * The new sandbox inherits the source's namespace and base template; vCPU
-   * and memory default to the source's values unless overridden in opts.
-   *
-   * Cross-namespace forks are rejected (404).
-   */
-  static async forkSandbox(sourceSandboxId, timeoutMs, opts) {
-    var _a3, _c, _d, _e;
-    const config = new ConnectionConfig(opts);
-    const client = new ApiClient(config);
-    const _b = (_a3 = opts == null ? void 0 : opts.network) != null ? _a3 : {}, { udpIngress } = _b, networkRest = __objRest(_b, ["udpIngress"]);
-    const networkBody = Object.keys(networkRest).length > 0 ? networkRest : void 0;
-    const res = await client.api.POST("/sandboxes/{sandboxID}/fork", {
-      params: {
-        path: {
-          sandboxID: sourceSandboxId
-        }
-      },
-      body: {
-        autoPauseMode: (_c = opts == null ? void 0 : opts.autoPauseMode) != null ? _c : "pause",
-        sandboxID: opts == null ? void 0 : opts.sandboxId,
-        metadata: opts == null ? void 0 : opts.metadata,
-        envVars: opts == null ? void 0 : opts.envs,
-        timeout: timeoutToSeconds(timeoutMs),
-        network: networkBody,
-        udpIngress,
-        webhookUrl: opts == null ? void 0 : opts.webhookUrl
-      },
-      signal: config.getSignal(opts == null ? void 0 : opts.requestTimeoutMs)
-    });
-    if (((_d = res.error) == null ? void 0 : _d.code) === 404) {
-      throw new NotFoundError(
-        `Source sandbox ${sourceSandboxId} not found or has no snapshot \u2014 pause or hibernate it before forking`
-      );
-    }
-    const err = handleApiError(res);
-    if (err) {
-      throw err;
-    }
-    if (compareVersions4(res.data.envdVersion, "0.1.0") < 0) {
-      await this.kill(res.data.sandboxID, opts);
-      throw new TemplateError(
-        "You need to update the template to use the new SDK."
-      );
-    }
-    return {
-      sandboxId: res.data.sandboxID,
-      sandboxDomain: res.data.domain || void 0,
-      envdVersion: res.data.envdVersion,
-      envdAccessToken: res.data.envdAccessToken,
-      udpEndpoint: (_e = res.data) == null ? void 0 : _e.udpEndpoint
     };
   }
   /**
@@ -2078,7 +2033,12 @@ var SandboxApi = class {
       sandboxId: res.data.sandboxID,
       sandboxDomain: res.data.domain || void 0,
       envdVersion: res.data.envdVersion,
-      envdAccessToken: res.data.envdAccessToken,
+      envdAccessToken: await deriveEnvdAccessToken(
+        config,
+        res.data.sandboxID,
+        res.data.envdAccessToken
+      ),
+      trafficAccessToken: res.data.trafficAccessToken || void 0,
       udpEndpoint: (_e = res.data) == null ? void 0 : _e.udpEndpoint
     };
   }
@@ -2146,7 +2106,7 @@ var SandboxPaginator = class {
     this._hasNext = !!this._nextToken;
     return ((_c = res.data) != null ? _c : []).map(
       (sandbox) => {
-        var _a4;
+        var _a4, _b2, _c2;
         return __spreadProps(__spreadValues({
           sandboxId: sandbox.sandboxID,
           templateId: sandbox.templateID
@@ -2157,7 +2117,9 @@ var SandboxPaginator = class {
           state: sandbox.state,
           cpuCount: sandbox.cpuCount,
           memoryMB: sandbox.memoryMB,
-          envdVersion: sandbox.envdVersion
+          envdVersion: sandbox.envdVersion,
+          buildId: (_b2 = sandbox.buildID) != null ? _b2 : "",
+          coldStart: (_c2 = sandbox.coldStart) != null ? _c2 : true
         });
       }
     );
@@ -2184,15 +2146,16 @@ var Sandbox = class extends SandboxApi {
     this.sandboxId = opts.sandboxId;
     this.sandboxDomain = (_a3 = opts.sandboxDomain) != null ? _a3 : this.connectionConfig.domain;
     this.envdAccessToken = opts.envdAccessToken;
+    this.trafficAccessToken = opts.trafficAccessToken;
     this.udpEndpoint = opts.udpEndpoint;
     this.envdApiUrl = this.connectionConfig.getSandboxUrl(this.sandboxId, {
       sandboxDomain: this.sandboxDomain,
       envdPort: this.envdPort
     });
-    const sandboxHeaders = __spreadValues({
-      "Rebyte-Sandbox-Id": this.sandboxId,
-      "Rebyte-Sandbox-Port": this.envdPort.toString()
-    }, this.connectionConfig.apiKey ? { "X-API-Key": this.connectionConfig.apiKey } : {});
+    const sandboxHeaders = {
+      "E2b-Sandbox-Id": this.sandboxId,
+      "E2b-Sandbox-Port": this.envdPort.toString()
+    };
     const rpcTransport = createGrpcWebTransport({
       baseUrl: this.envdApiUrl,
       useBinaryFormat: true,
@@ -2322,9 +2285,10 @@ var Sandbox = class extends SandboxApi {
     const sandbox = await SandboxApi.connectSandbox(sandboxId, opts);
     const config = new ConnectionConfig(opts);
     return new this(__spreadValues({
-      sandboxId: sandbox.sandboxId,
+      sandboxId,
       sandboxDomain: sandbox.sandboxDomain,
       envdAccessToken: sandbox.envdAccessToken,
+      trafficAccessToken: sandbox.trafficAccessToken,
       udpEndpoint: sandbox.udpEndpoint,
       envdVersion: sandbox.envdVersion
     }, config));
@@ -2350,50 +2314,8 @@ var Sandbox = class extends SandboxApi {
    */
   async connect(opts) {
     const result = await SandboxApi.connectSandbox(this.sandboxId, __spreadValues(__spreadValues({}, this.connectionConfig), opts));
-    this.sandboxId = result.sandboxId;
-    this.sandboxDomain = result.sandboxDomain;
-    this.envdAccessToken = result.envdAccessToken;
     this.udpEndpoint = result.udpEndpoint;
     return this;
-  }
-  /**
-   * Fork this sandbox into a new sandbox cold-booted from this sandbox's
-   * latest snapshot.
-   *
-   * **Source must be paused or hibernated first.** Calling `fork()` on a
-   * running sandbox throws `NotFoundError` ("source has no snapshot").
-   *
-   * The new sandbox is independent: subsequent writes in either sandbox don't
-   * affect the other. The new sandbox inherits the source's namespace and
-   * base template; vCPU/memory default to the source's values unless
-   * overridden in `opts`.
-   *
-   * @param opts options for the new sandbox (sandboxId, timeoutMs, metadata,
-   *   envs, network, autoPauseMode, vcpu, memoryMb, etc.). Templates and
-   *   buildId are derived server-side from the source's snapshot.
-   *
-   * @returns A new Sandbox instance for the forked sandbox.
-   *
-   * @example
-   * ```ts
-   * const src = await Sandbox.create()
-   * await src.files.write('/home/user/marker.txt', 'hello', { user: 'user' })
-   * await src.hibernate()                       // freeze source's rootfs
-   * const branch = await src.fork({ sandboxId: 'branch-1' })
-   * const text = await branch.files.read('/home/user/marker.txt', { user: 'user' })
-   * // text === 'hello' — branch starts from source's snapshot
-   * ```
-   */
-  async fork(opts) {
-    var _a3;
-    const merged = __spreadValues(__spreadValues({}, this.connectionConfig), opts);
-    const sandboxInfo = await SandboxApi.forkSandbox(
-      this.sandboxId,
-      (_a3 = opts == null ? void 0 : opts.timeoutMs) != null ? _a3 : this.constructor.defaultSandboxTimeoutMs,
-      merged
-    );
-    const config = new ConnectionConfig(merged);
-    return new this.constructor(__spreadValues(__spreadValues({}, sandboxInfo), config));
   }
   /**
    * Get the host address for the specified sandbox port.
@@ -3203,7 +3125,7 @@ function parseDockerfile(dockerfileContentOrPath, templateBuilder) {
   }
   const fromInstruction = fromInstructions[0];
   const argumentsData = fromInstruction.getArguments();
-  let baseImage = "ubuntu:22.04";
+  let baseImage = "e2bdev/base";
   let userChanged = false;
   let workdirChanged = false;
   if (argumentsData && argumentsData.length > 0) {
@@ -3357,7 +3279,7 @@ function handleCmdEntrypointInstruction(instruction, templateBuilder) {
 var _a2;
 var TemplateBase = class {
   constructor(options) {
-    this.defaultBaseImage = "ubuntu:22.04";
+    this.defaultBaseImage = "e2bdev/base";
     this.baseImage = this.defaultBaseImage;
     this.baseTemplate = void 0;
     this.registryConfig = void 0;
@@ -3390,17 +3312,17 @@ var TemplateBase = class {
   }
   /**
    * Convert a template to Dockerfile format.
-   * Note: Templates based on other sandbox templates cannot be converted to Dockerfile.
+   * Note: Templates based on other E2B templates cannot be converted to Dockerfile.
    *
    * @param template The template to convert
    * @returns Dockerfile string representation
-   * @throws Error if the template is based on another sandbox template
+   * @throws Error if the template is based on another E2B template
    */
   static toDockerfile(template) {
     return template.toDockerfile();
   }
   /**
-   * Build and deploy a template to rebyte-sandbox infrastructure.
+   * Build and deploy a template to E2B infrastructure.
    *
    * @param template The template to build
    * @param options Build configuration options
@@ -3422,7 +3344,6 @@ var TemplateBase = class {
       const baseTemplate = template;
       const config = new ConnectionConfig({
         domain: options.domain,
-        apiUrl: options.apiUrl,
         apiKey: options.apiKey
       });
       const client = new ApiClient(config);
@@ -3444,7 +3365,7 @@ var TemplateBase = class {
     }
   }
   /**
-   * Build and deploy a template to rebyte-sandbox infrastructure.
+   * Build and deploy a template to E2B infrastructure.
    *
    * @param template The template to build
    * @param options Build configuration options
@@ -3462,7 +3383,6 @@ var TemplateBase = class {
   static async buildInBackground(template, options) {
     const config = new ConnectionConfig({
       domain: options.domain,
-      apiUrl: options.apiUrl,
       apiKey: options.apiKey
     });
     const client = new ApiClient(config);
@@ -3482,7 +3402,6 @@ var TemplateBase = class {
   static async getBuildStatus(data, options) {
     const config = new ConnectionConfig({
       domain: options == null ? void 0 : options.domain,
-      apiUrl: options == null ? void 0 : options.apiUrl,
       apiKey: options == null ? void 0 : options.apiKey
     });
     const client = new ApiClient(config);
@@ -3929,16 +3848,16 @@ var TemplateBase = class {
    * Convert the template to Dockerfile format.
    *
    * Note: Only templates based on Docker images can be converted to Dockerfile.
-   * Templates based on other sandbox templates cannot be converted because they
+   * Templates based on other E2B templates cannot be converted because they
    * may use features not available in standard Dockerfiles.
    *
    * @returns Dockerfile string representation
-   * @throws Error if template is based on another sandbox template or has no base image
+   * @throws Error if template is based on another E2B template or has no base image
    */
   toDockerfile() {
     if (this.baseTemplate !== void 0) {
       throw new Error(
-        "Cannot convert template built from another template to Dockerfile. Templates based on other templates can only be built using the rebyte-sandbox API."
+        "Cannot convert template built from another template to Dockerfile. Templates based on other templates can only be built using the E2B API."
       );
     }
     if (this.baseImage === void 0) {
@@ -3978,7 +3897,7 @@ var TemplateBase = class {
   /**
    * Internal implementation of the template build process.
    *
-   * @param client API client for communicating with rebyte-sandbox backend
+   * @param client API client for communicating with E2B backend
    * @param options Build configuration options
    * @throws BuildError if the build fails
    */

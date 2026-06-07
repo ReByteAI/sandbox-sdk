@@ -42,7 +42,7 @@ export interface SandboxUrlOpts {
 }
 
 /**
- * rebyte-sandbox is a secure and isolated cloud environment.
+ * E2B cloud sandbox is a secure and isolated cloud environment.
  *
  * The sandbox allows you to:
  * - Access Linux OS
@@ -51,13 +51,13 @@ export interface SandboxUrlOpts {
  * - Run isolated code
  * - Access the internet
  *
- * Rebyte Sandbox SDK.
+ * Check docs [here](https://e2b.dev/docs).
  *
  * Use {@link Sandbox.create} to create a new sandbox.
  *
  * @example
  * ```ts
- * import { Sandbox } from 'rebyte-sandbox'
+ * import { Sandbox } from 'e2b'
  *
  * const sandbox = await Sandbox.create()
  * ```
@@ -91,6 +91,11 @@ export class Sandbox extends SandboxApi {
   readonly sandboxDomain: string
 
   /**
+   * Traffic access token for accessing sandbox services with restricted public traffic.
+   */
+  readonly trafficAccessToken?: string
+
+  /**
    * Allocated public UDP endpoint for media ingress (WebRTC/RTP).
    * Only set when the sandbox was created with `network.udpIngress.enabled: true`.
    * Updated on reconnect/resume if the backend allocates a new port.
@@ -120,6 +125,7 @@ export class Sandbox extends SandboxApi {
       sandboxDomain?: string
       envdVersion: string
       envdAccessToken?: string
+      trafficAccessToken?: string
       udpEndpoint?: UdpEndpoint
     }
   ) {
@@ -131,6 +137,7 @@ export class Sandbox extends SandboxApi {
     this.sandboxDomain = opts.sandboxDomain ?? this.connectionConfig.domain
 
     this.envdAccessToken = opts.envdAccessToken
+    this.trafficAccessToken = opts.trafficAccessToken
     this.udpEndpoint = opts.udpEndpoint
     this.envdApiUrl = this.connectionConfig.getSandboxUrl(this.sandboxId, {
       sandboxDomain: this.sandboxDomain,
@@ -138,14 +145,8 @@ export class Sandbox extends SandboxApi {
     })
 
     const sandboxHeaders = {
-      'Rebyte-Sandbox-Id': this.sandboxId,
-      'Rebyte-Sandbox-Port': this.envdPort.toString(),
-      // Authenticates the proxy hop at the gateway. We use X-API-Key, not
-      // Authorization, because envd's per-user header is also Authorization
-      // and the two would collide on the same request.
-      ...(this.connectionConfig.apiKey
-        ? { 'X-API-Key': this.connectionConfig.apiKey }
-        : {}),
+      'E2b-Sandbox-Id': this.sandboxId,
+      'E2b-Sandbox-Port': this.envdPort.toString(),
     }
 
     // Use gRPC-Web transport which survives UFFD pause/resume
@@ -157,6 +158,7 @@ export class Sandbox extends SandboxApi {
         // Patch fetch to always use redirect: "follow"
         // connect-web doesn't allow to configure redirect option - https://github.com/connectrpc/connect-es/pull/1082
         // connect-web package uses redirect: "error" which is not supported in edge runtimes
+        // E2B endpoints should be safe to use with redirect: "follow" https://github.com/e2b-dev/E2B/issues/531#issuecomment-2779492867
 
         const headers = new Headers(this.connectionConfig.headers)
         new Headers(options?.headers).forEach((value, key) =>
@@ -351,9 +353,10 @@ export class Sandbox extends SandboxApi {
     const config = new ConnectionConfig(opts)
 
     return new this({
-      sandboxId: sandbox.sandboxId,
+      sandboxId,
       sandboxDomain: sandbox.sandboxDomain,
       envdAccessToken: sandbox.envdAccessToken,
+      trafficAccessToken: sandbox.trafficAccessToken,
       udpEndpoint: sandbox.udpEndpoint,
       envdVersion: sandbox.envdVersion,
       ...config,
@@ -381,54 +384,9 @@ export class Sandbox extends SandboxApi {
    */
   async connect(opts?: SandboxOpts): Promise<this> {
     const result = await SandboxApi.connectSandbox(this.sandboxId, { ...this.connectionConfig, ...opts })
-    ;(this as any).sandboxId = result.sandboxId
-    ;(this as any).sandboxDomain = result.sandboxDomain
-    ;(this as any).envdAccessToken = result.envdAccessToken
     this.udpEndpoint = result.udpEndpoint
 
     return this
-  }
-
-  /**
-   * Fork this sandbox into a new sandbox cold-booted from this sandbox's
-   * latest snapshot.
-   *
-   * **Source must be paused or hibernated first.** Calling `fork()` on a
-   * running sandbox throws `NotFoundError` ("source has no snapshot").
-   *
-   * The new sandbox is independent: subsequent writes in either sandbox don't
-   * affect the other. The new sandbox inherits the source's namespace and
-   * base template; vCPU/memory default to the source's values unless
-   * overridden in `opts`.
-   *
-   * @param opts options for the new sandbox (sandboxId, timeoutMs, metadata,
-   *   envs, network, autoPauseMode, vcpu, memoryMb, etc.). Templates and
-   *   buildId are derived server-side from the source's snapshot.
-   *
-   * @returns A new Sandbox instance for the forked sandbox.
-   *
-   * @example
-   * ```ts
-   * const src = await Sandbox.create()
-   * await src.files.write('/home/user/marker.txt', 'hello', { user: 'user' })
-   * await src.hibernate()                       // freeze source's rootfs
-   * const branch = await src.fork({ sandboxId: 'branch-1' })
-   * const text = await branch.files.read('/home/user/marker.txt', { user: 'user' })
-   * // text === 'hello' — branch starts from source's snapshot
-   * ```
-   */
-  async fork<S extends Sandbox = this>(opts?: SandboxOpts): Promise<S> {
-    const merged = { ...this.connectionConfig, ...opts }
-    const sandboxInfo = await (SandboxApi as any).forkSandbox(
-      this.sandboxId,
-      opts?.timeoutMs ?? (this.constructor as typeof Sandbox).defaultSandboxTimeoutMs,
-      merged
-    )
-    const config = new ConnectionConfig(merged)
-    return new (this.constructor as new (init: any) => S)({
-      ...sandboxInfo,
-      ...config,
-    })
   }
 
   /**

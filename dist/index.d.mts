@@ -2107,35 +2107,39 @@ interface Logger {
  */
 interface ConnectionOpts {
     /**
-     * rebyte-sandbox API key to use for authentication.
+     * E2B API key to use for authentication.
+     *
+     * @default E2B_API_KEY // environment variable
      */
     apiKey?: string;
     /**
-     * Access token to use for authentication.
+     * E2B access token to use for authentication.
+     *
+     * @default E2B_ACCESS_TOKEN // environment variable
      */
     accessToken?: string;
     /**
      * Domain to use for the API.
      *
-     * @default SANDBOX_DOMAIN or the host from SANDBOX_API_URL
+     * @default E2B_DOMAIN // environment variable or `prod.rebyte.app`
      */
     domain?: string;
     /**
      * API Url to use for the API.
      * @internal
-     * @default `https://${domain}`
+     * @default E2B_API_URL // environment variable or `https://${domain}`
      */
     apiUrl?: string;
     /**
      * Sandbox Url to use for the API.
      * @internal
-     * @default `https://${port}-${sandboxID}.${domain}`
+     * @default E2B_SANDBOX_URL // environment variable or `https://${port}-${sandboxID}.${domain}`
      */
     sandboxUrl?: string;
     /**
      * If true the SDK starts in the debug mode and connects to the local envd API server.
      * @internal
-     * @default false
+     * @default E2B_DEBUG // environment variable or `false`
      */
     debug?: boolean;
     /**
@@ -2168,6 +2172,12 @@ declare class ConnectionConfig {
     readonly accessToken?: string;
     readonly headers?: Record<string, string>;
     constructor(opts?: ConnectionOpts);
+    private static get domain();
+    private static get apiUrl();
+    private static get sandboxUrl();
+    private static get debug();
+    private static get apiKey();
+    private static get accessToken();
     getSignal(requestTimeoutMs?: number): AbortSignal | undefined;
     getSandboxUrl(sandboxId: string, opts: {
         sandboxDomain: string;
@@ -2178,7 +2188,7 @@ declare class ConnectionConfig {
 type Username = string;
 
 /**
- * Client for interacting with the rebyte-sandbox API.
+ * Client for interacting with the E2B API.
  */
 declare class ApiClient {
     readonly api: ReturnType<typeof createClient<paths>>;
@@ -2325,43 +2335,6 @@ declare function getSignature({ path, operation, user, expirationInSeconds, envd
     signature: string;
     expiration: number | null;
 }>;
-
-/**
- * Mint a sandbox-scoped JWT for the gateway proxy path.
- *
- * The gateway authenticates proxy requests by HS256-verifying the token
- * against `sha256(api_key)` for the team named in the JWT's `team_id`
- * claim. The `sandbox_id` claim restricts the token to a single sandbox —
- * a leaked token can only reach that one VM and only until `exp`.
- *
- * Use this to hand a least-privilege credential to an untrusted client
- * (a browser, a third-party callback, a per-tenant subprocess) instead of
- * shipping the raw API key. The Sandbox SDK itself sends the raw API key
- * over `X-API-Key` and does not need this helper for its own traffic.
- *
- * @example
- * ```ts
- * const token = await mintSandboxToken({
- *   apiKey: process.env.MSB_API_KEY!,
- *   teamId: 'agentbox-production',
- *   sandboxId: sandbox.sandboxId,
- *   expSeconds: 600,
- * })
- * // ship token to the browser; browser fetches sandbox URL with
- * // `Authorization: Bearer <token>`
- * ```
- */
-interface MintSandboxTokenOpts {
-    /** Root API key for the team (`msb_...`). Used as HMAC secret material. */
-    apiKey: string;
-    /** Team / org ID that owns the sandbox. Goes into the JWT `team_id` claim. */
-    teamId: string;
-    /** Sandbox the token is allowed to reach. Goes into the JWT `sandbox_id` claim. */
-    sandboxId: string;
-    /** Lifetime of the token in seconds. Defaults to 1 hour. */
-    expSeconds?: number;
-}
-declare function mintSandboxToken(opts: MintSandboxTokenOpts): Promise<string>;
 
 /**
  * @generated from message process.PTY
@@ -3479,6 +3452,7 @@ interface McpServer$1 {
   dreamfactory?: DreamFactoryMCPServer
   duckduckgo?: DuckDuckGo
   dynatrace?: DynatraceMCPServer
+  e2b?: E2B
   edubase?: EduBase
   effect?: EffectMCP
   elasticsearch?: Elasticsearch
@@ -4056,6 +4030,12 @@ interface DynatraceMCPServer {
   oauthClientId: string
   oauthClientSecret: string
   url: string
+}
+/**
+ * Giving Claude ability to run code with E2B via MCP (Model Context Protocol).
+ */
+interface E2B {
+  apiKey: string
 }
 /**
  * The EduBase MCP server enables Claude and other LLMs to interact with EduBase's comprehensive e-learning platform through the Model Context Protocol (MCP).
@@ -5354,7 +5334,7 @@ type GitHubMcpServer = {
     };
 };
 /**
- * Egress (outbound) network configuration.
+ * Egress (outbound) network configuration (matches E2B exactly).
  *
  * Priority order for egress checking:
  *   1. allowedDomains → if hostname matches, ALLOW (bypass all)
@@ -5405,20 +5385,14 @@ type SandboxNetworkOpts = {
      */
     egress?: SandboxNetworkEgressOpts;
     /**
-     * If true, the sandbox's user-app proxy URLs accept requests without
-     * authentication — knowing the URL is the credential. Useful for embed
-     * / iframe scenarios where the browser cannot attach an Authorization
-     * header on navigation or subresource loads. The envd RPC port (49983)
-     * always requires authentication regardless. Public sandboxes can be
-     * auto-resumed by any caller, so the owner pays the wake cost; access
-     * is logged for audit.
-     * @default false
+     * Specify if the sandbox URLs should be accessible only with authentication.
+     * @default true
      */
     allowPublicTraffic?: boolean;
     /** Specify host mask which will be used for all sandbox requests in the header.
      * You can use the ${PORT} variable that will be replaced with the actual port number of the service.
      *
-     * @default ${PORT}-${sandboxID}.${domain}
+     * @default ${PORT}-sandboxid.e2b.app
      */
     maskRequestHost?: string;
     /**
@@ -5458,7 +5432,7 @@ type UdpEndpoint = {
 /**
  * Options for request to the Sandbox API.
  */
-interface SandboxApiOpts extends Partial<Pick<ConnectionOpts, 'apiKey' | 'accessToken' | 'headers' | 'debug' | 'domain' | 'apiUrl' | 'sandboxUrl' | 'requestTimeoutMs'>> {
+interface SandboxApiOpts extends Partial<Pick<ConnectionOpts, 'apiKey' | 'headers' | 'debug' | 'domain' | 'requestTimeoutMs'>> {
 }
 /**
  * Options for creating a new Sandbox.
@@ -5683,15 +5657,13 @@ interface SandboxInfo {
      */
     webhookUrl?: string;
     /**
-     * Build ID this sandbox started from (snapshot identifier).
-     * `undefined` for fresh creates (no snapshot).
+     * Build ID this sandbox started from (template ID for fresh creates, snapshot build ID for resumes).
      */
-    buildId?: string;
+    buildId: string;
     /**
-     * Whether this sandbox was cold-started (rootfs only) vs full restored (local memfile).
-     * `undefined` for fresh creates or paused sandboxes not currently running.
+     * Whether this sandbox was cold-started (fresh boot from rootfs) or full restored (from local memfile snapshot).
      */
-    coldStart?: boolean;
+    coldStart: boolean;
 }
 /**
  * Sandbox resource usage metrics.
@@ -5838,21 +5810,7 @@ declare class SandboxApi {
         sandboxDomain: string | undefined;
         envdVersion: string;
         envdAccessToken: string | undefined;
-        udpEndpoint: UdpEndpoint | undefined;
-    }>;
-    /**
-     * Fork a paused/hibernated sandbox into a new sandbox that cold-boots from
-     * the source's latest snapshot. Source must already be paused or hibernated.
-     * The new sandbox inherits the source's namespace and base template; vCPU
-     * and memory default to the source's values unless overridden in opts.
-     *
-     * Cross-namespace forks are rejected (404).
-     */
-    protected static forkSandbox(sourceSandboxId: string, timeoutMs: number, opts?: SandboxOpts): Promise<{
-        sandboxId: any;
-        sandboxDomain: any;
-        envdVersion: any;
-        envdAccessToken: any;
+        trafficAccessToken: string | undefined;
         udpEndpoint: UdpEndpoint | undefined;
     }>;
     /**
@@ -5873,6 +5831,7 @@ declare class SandboxApi {
         sandboxDomain: string | undefined;
         envdVersion: string;
         envdAccessToken: string | undefined;
+        trafficAccessToken: string | undefined;
         udpEndpoint: UdpEndpoint | undefined;
     }>;
 }
@@ -6197,7 +6156,7 @@ interface SandboxUrlOpts {
     user?: Username;
 }
 /**
- * rebyte-sandbox is a secure and isolated cloud environment.
+ * E2B cloud sandbox is a secure and isolated cloud environment.
  *
  * The sandbox allows you to:
  * - Access Linux OS
@@ -6206,13 +6165,13 @@ interface SandboxUrlOpts {
  * - Run isolated code
  * - Access the internet
  *
- * Rebyte Sandbox SDK.
+ * Check docs [here](https://e2b.dev/docs).
  *
  * Use {@link Sandbox.create} to create a new sandbox.
  *
  * @example
  * ```ts
- * import { Sandbox } from 'rebyte-sandbox'
+ * import { Sandbox } from 'e2b'
  *
  * const sandbox = await Sandbox.create()
  * ```
@@ -6242,6 +6201,10 @@ declare class Sandbox extends SandboxApi {
      */
     readonly sandboxDomain: string;
     /**
+     * Traffic access token for accessing sandbox services with restricted public traffic.
+     */
+    readonly trafficAccessToken?: string;
+    /**
      * Allocated public UDP endpoint for media ingress (WebRTC/RTP).
      * Only set when the sandbox was created with `network.udpIngress.enabled: true`.
      * Updated on reconnect/resume if the backend allocates a new port.
@@ -6267,6 +6230,7 @@ declare class Sandbox extends SandboxApi {
         sandboxDomain?: string;
         envdVersion: string;
         envdAccessToken?: string;
+        trafficAccessToken?: string;
         udpEndpoint?: UdpEndpoint;
     });
     /**
@@ -6358,35 +6322,6 @@ declare class Sandbox extends SandboxApi {
      * ```
      */
     connect(opts?: SandboxOpts): Promise<this>;
-    /**
-     * Fork this sandbox into a new sandbox cold-booted from this sandbox's
-     * latest snapshot.
-     *
-     * **Source must be paused or hibernated first.** Calling `fork()` on a
-     * running sandbox throws `NotFoundError` ("source has no snapshot").
-     *
-     * The new sandbox is independent: subsequent writes in either sandbox don't
-     * affect the other. The new sandbox inherits the source's namespace and
-     * base template; vCPU/memory default to the source's values unless
-     * overridden in `opts`.
-     *
-     * @param opts options for the new sandbox (sandboxId, timeoutMs, metadata,
-     *   envs, network, autoPauseMode, vcpu, memoryMb, etc.). Templates and
-     *   buildId are derived server-side from the source's snapshot.
-     *
-     * @returns A new Sandbox instance for the forked sandbox.
-     *
-     * @example
-     * ```ts
-     * const src = await Sandbox.create()
-     * await src.files.write('/home/user/marker.txt', 'hello', { user: 'user' })
-     * await src.hibernate()                       // freeze source's rootfs
-     * const branch = await src.fork({ sandboxId: 'branch-1' })
-     * const text = await branch.files.read('/home/user/marker.txt', { user: 'user' })
-     * // text === 'hello' — branch starts from source's snapshot
-     * ```
-     */
-    fork<S extends Sandbox = this>(opts?: SandboxOpts): Promise<S>;
     /**
      * Get the host address for the specified sandbox port.
      * You can then use this address to connect to the sandbox port from outside the sandbox via HTTP or WebSocket.
@@ -6564,7 +6499,7 @@ declare class LogEntryEnd extends LogEntry {
  *
  * @example
  * ```ts
- * import { Template, defaultBuildLogger } from 'rebyte-sandbox'
+ * import { Template, defaultBuildLogger } from 'e2b'
  *
  * const template = Template().fromPythonImage()
  *
@@ -6597,7 +6532,7 @@ declare class ReadyCmd {
  *
  * @example
  * ```ts
- * import { Template, waitForPort } from 'rebyte-sandbox'
+ * import { Template, waitForPort } from 'e2b'
  *
  * const template = Template()
  *   .fromPythonImage()
@@ -6615,7 +6550,7 @@ declare function waitForPort(port: number): ReadyCmd;
  *
  * @example
  * ```ts
- * import { Template, waitForURL } from 'rebyte-sandbox'
+ * import { Template, waitForURL } from 'e2b'
  *
  * const template = Template()
  *   .fromNodeImage()
@@ -6632,7 +6567,7 @@ declare function waitForURL(url: string, statusCode?: number): ReadyCmd;
  *
  * @example
  * ```ts
- * import { Template, waitForProcess } from 'rebyte-sandbox'
+ * import { Template, waitForProcess } from 'e2b'
  *
  * const template = Template()
  *   .fromBaseImage()
@@ -6649,7 +6584,7 @@ declare function waitForProcess(processName: string): ReadyCmd;
  *
  * @example
  * ```ts
- * import { Template, waitForFile } from 'rebyte-sandbox'
+ * import { Template, waitForFile } from 'e2b'
  *
  * const template = Template()
  *   .fromBaseImage()
@@ -6666,7 +6601,7 @@ declare function waitForFile(filename: string): ReadyCmd;
  *
  * @example
  * ```ts
- * import { Template, waitForTimeout } from 'rebyte-sandbox'
+ * import { Template, waitForTimeout } from 'e2b'
  *
  * const template = Template()
  *   .fromNodeImage()
@@ -6718,21 +6653,17 @@ type BasicBuildOptions = {
     onBuildLogs?: (logEntry: LogEntry) => void;
 };
 /**
- * Authentication options for rebyte-sandbox API.
+ * Authentication options for E2B API.
  */
 type AuthOptions = {
     /**
-     * rebyte-sandbox API key for authentication.
+     * E2B API key for authentication.
      */
     apiKey?: string;
     /**
-     * Domain of the rebyte-sandbox API.
+     * Domain of the E2B API.
      */
     domain?: string;
-    /**
-     * Full URL of the rebyte-sandbox API.
-     */
-    apiUrl?: string;
 };
 /**
  * Options for building a template with authentication.
@@ -6823,7 +6754,7 @@ interface TemplateFromImage {
      */
     fromBunImage(variant?: string): TemplateBuilder;
     /**
-     * Start from rebyte-sandbox default base image (ubuntu:22.04).
+     * Start from E2B's default base image (e2bdev/base:latest).
      *
      * @example
      * ```ts
@@ -6852,8 +6783,8 @@ interface TemplateFromImage {
         password: string;
     }): TemplateBuilder;
     /**
-     * Start from an existing sandbox template.
-     * @param template sandbox template ID or alias
+     * Start from an existing E2B template.
+     * @param template E2B template ID or alias
      *
      * @example
      * ```ts
@@ -7208,7 +7139,7 @@ interface TemplateBuilder {
      * )
      *
      * // Using ReadyCmd helpers
-     * import { waitForPort, waitForURL } from 'rebyte-sandbox'
+     * import { waitForPort, waitForURL } from 'e2b'
      *
      * template.setStartCmd(
      *   'python -m http.server 8000',
@@ -7232,7 +7163,7 @@ interface TemplateBuilder {
      * template.setReadyCmd('curl http://localhost:8000/health')
      *
      * // Using ReadyCmd helpers
-     * import { waitForPort, waitForFile, waitForProcess } from 'rebyte-sandbox'
+     * import { waitForPort, waitForFile, waitForProcess } from 'e2b'
      *
      * template.setReadyCmd(waitForPort(3000))
      *
@@ -7286,7 +7217,7 @@ interface TemplateFinal {
 type TemplateClass = TemplateBuilder | TemplateFinal;
 
 /**
- * Base class for building rebyte-sandbox templates.
+ * Base class for building E2B sandbox templates.
  */
 declare class TemplateBase implements TemplateFromImage, TemplateBuilder, TemplateFinal {
     private defaultBaseImage;
@@ -7315,15 +7246,15 @@ declare class TemplateBase implements TemplateFromImage, TemplateBuilder, Templa
     static toJSON(template: TemplateClass, computeHashes?: boolean): Promise<string>;
     /**
      * Convert a template to Dockerfile format.
-     * Note: Templates based on other sandbox templates cannot be converted to Dockerfile.
+     * Note: Templates based on other E2B templates cannot be converted to Dockerfile.
      *
      * @param template The template to convert
      * @returns Dockerfile string representation
-     * @throws Error if the template is based on another sandbox template
+     * @throws Error if the template is based on another E2B template
      */
     static toDockerfile(template: TemplateClass): string;
     /**
-     * Build and deploy a template to rebyte-sandbox infrastructure.
+     * Build and deploy a template to E2B infrastructure.
      *
      * @param template The template to build
      * @param options Build configuration options
@@ -7340,7 +7271,7 @@ declare class TemplateBase implements TemplateFromImage, TemplateBuilder, Templa
      */
     static build(template: TemplateClass, options: BuildOptions): Promise<BuildInfo>;
     /**
-     * Build and deploy a template to rebyte-sandbox infrastructure.
+     * Build and deploy a template to E2B infrastructure.
      *
      * @param template The template to build
      * @param options Build configuration options
@@ -7484,17 +7415,17 @@ declare class TemplateBase implements TemplateFromImage, TemplateBuilder, Templa
      * Convert the template to Dockerfile format.
      *
      * Note: Only templates based on Docker images can be converted to Dockerfile.
-     * Templates based on other sandbox templates cannot be converted because they
+     * Templates based on other E2B templates cannot be converted because they
      * may use features not available in standard Dockerfiles.
      *
      * @returns Dockerfile string representation
-     * @throws Error if template is based on another sandbox template or has no base image
+     * @throws Error if template is based on another E2B template or has no base image
      */
     private toDockerfile;
     /**
      * Internal implementation of the template build process.
      *
-     * @param client API client for communicating with rebyte-sandbox backend
+     * @param client API client for communicating with E2B backend
      * @param options Build configuration options
      * @throws BuildError if the build fails
      */
@@ -7514,14 +7445,14 @@ declare class TemplateBase implements TemplateFromImage, TemplateBuilder, Templa
     private serialize;
 }
 /**
- * Create a new sandbox template builder instance.
+ * Create a new E2B template builder instance.
  *
  * @param options Optional configuration for the template builder
  * @returns A new template builder instance
  *
  * @example
  * ```ts
- * import { Template } from 'rebyte-sandbox'
+ * import { Template } from 'e2b'
  *
  * const template = Template()
  *   .fromPythonImage('3')
@@ -7539,5 +7470,42 @@ declare namespace Template {
     var toJSON: typeof TemplateBase.toJSON;
     var toDockerfile: typeof TemplateBase.toDockerfile;
 }
+
+/**
+ * Mint a sandbox-scoped JWT for the gateway proxy path.
+ *
+ * The gateway authenticates proxy requests by HS256-verifying the token
+ * against `sha256(api_key)` for the team named in the JWT's `team_id`
+ * claim. The `sandbox_id` claim restricts the token to a single sandbox —
+ * a leaked token can only reach that one VM and only until `exp`.
+ *
+ * Use this to hand a least-privilege credential to an untrusted client
+ * (a browser, a third-party callback, a per-tenant subprocess) instead of
+ * shipping the raw API key. The Sandbox SDK itself sends the raw API key
+ * over `X-API-Key` and does not need this helper for its own traffic.
+ *
+ * @example
+ * ```ts
+ * const token = await mintSandboxToken({
+ *   apiKey: process.env.MSB_API_KEY!,
+ *   teamId: 'agentbox-production',
+ *   sandboxId: sandbox.sandboxId,
+ *   expSeconds: 600,
+ * })
+ * // ship token to the browser; browser fetches sandbox URL with
+ * // `Authorization: Bearer <token>`
+ * ```
+ */
+interface MintSandboxTokenOpts {
+    /** Root API key for the team (`msb_...`). Used as HMAC secret material. */
+    apiKey: string;
+    /** Team / org ID that owns the sandbox. Goes into the JWT `team_id` claim. */
+    teamId: string;
+    /** Sandbox the token is allowed to reach. Goes into the JWT `sandbox_id` claim. */
+    sandboxId: string;
+    /** Lifetime of the token in seconds. Defaults to 1 hour. */
+    expSeconds?: number;
+}
+declare function mintSandboxToken(opts: MintSandboxTokenOpts): Promise<string>;
 
 export { ALL_TRAFFIC, ApiClient, AuthenticationError, BuildError, type BuildInfo, type BuildOptions, type CommandConnectOpts, CommandExitError, CommandHandle, type CommandRequestOpts, type CommandResult, type CommandStartOpts, Commands, ConnectionConfig, type ConnectionOpts, type CopyItem, type EntryInfo, ErrorCode, type ErrorCodeType, FileType, FileUploadError, Filesystem, type FilesystemEvent, FilesystemEventType, type GetBuildStatusOptions, InvalidArgumentError, LogEntry, LogEntryEnd, type LogEntryLevel, LogEntryStart, type Logger, type McpServer$1 as McpServer, type McpServerName, type MintSandboxTokenOpts, NotEnoughSpaceError, NotFoundError, type ProcessInfo, Pty, type PtyOutput, RateLimitError, ReadyCmd, Sandbox, type SandboxApiOpts, type SandboxConnectOpts, SandboxError, type SandboxInfo, type SandboxListOpts, type SandboxMetrics, type SandboxMetricsOpts, type SandboxNetworkEgressOpts, type SandboxNetworkOpts, type SandboxOpts, SandboxPaginator, type SandboxState, type Stderr, type Stdout, Template, TemplateBase, type TemplateBuilder, type TemplateClass, TemplateError, TimeoutError, type UdpEndpoint, type UdpIngressOpts, type Username, WatchHandle, type WriteInfo, type components, Sandbox as default, defaultBuildLogger, getSignature, mintSandboxToken, type paths, waitForFile, waitForPort, waitForProcess, waitForTimeout, waitForURL };

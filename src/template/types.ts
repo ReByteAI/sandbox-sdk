@@ -48,21 +48,17 @@ export type BasicBuildOptions = {
 }
 
 /**
- * Authentication options for rebyte-sandbox API.
+ * Authentication options for E2B API.
  */
 export type AuthOptions = {
   /**
-   * rebyte-sandbox API key for authentication.
+   * E2B API key for authentication.
    */
   apiKey?: string
   /**
-   * Domain of the rebyte-sandbox API.
+   * Domain of the E2B API.
    */
   domain?: string
-  /**
-   * Full URL of the rebyte-sandbox API.
-   */
-  apiUrl?: string
 }
 
 /**
@@ -185,7 +181,7 @@ export interface TemplateFromImage {
   fromBunImage(variant?: string): TemplateBuilder
 
   /**
-   * Start from rebyte-sandbox default base image (ubuntu:22.04).
+   * Start from E2B's default base image (e2bdev/base:latest).
    *
    * @example
    * ```ts
@@ -216,8 +212,8 @@ export interface TemplateFromImage {
   ): TemplateBuilder
 
   /**
-   * Start from an existing sandbox template.
-   * @param template sandbox template ID or alias
+   * Start from an existing E2B template.
+   * @param template E2B template ID or alias
    *
    * @example
    * ```ts
@@ -605,7 +601,7 @@ export interface TemplateBuilder {
    * )
    *
    * // Using ReadyCmd helpers
-   * import { waitForPort, waitForURL } from 'rebyte-sandbox'
+   * import { waitForPort, waitForURL } from 'e2b'
    *
    * template.setStartCmd(
    *   'python -m http.server 8000',
@@ -633,7 +629,7 @@ export interface TemplateBuilder {
    * template.setReadyCmd('curl http://localhost:8000/health')
    *
    * // Using ReadyCmd helpers
-   * import { waitForPort, waitForFile, waitForProcess } from 'rebyte-sandbox'
+   * import { waitForPort, waitForFile, waitForProcess } from 'e2b'
    *
    * template.setReadyCmd(waitForPort(3000))
    *
